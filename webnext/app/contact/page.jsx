@@ -78,7 +78,7 @@ export default function ContactPage() {
               {[
                 { icon: '📍', title: 'Address', content: '123 Design Street, NY 10001' },
                 { icon: '📞', title: 'Phone', content: '+1 (555) 123-4567' },
-                { icon: '📧', title: 'Email', content: 'hello@luxefurn.com' },
+                { icon: '📧', title: 'Email', content: 'hello@Luxury Furniture.com' },
                 { icon: '🕐', title: 'Hours', content: 'Mon-Fri: 9AM-6PM EST' },
               ].map((item, idx) => (
                 <div key={idx}>

@@ -1,26 +1,145 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Navbar from '@/components/navbar.jsx';
 import Footer from '@/components/footer.jsx';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks.js';
 import { addToCart } from '@/redux/slices/cartSlice.js';
-import { FEATURED_PRODUCTS } from '@/lib/constants.js';
+import { addToWishlist } from '@/redux/slices/wishlistSlice.js';
+import { getProductById } from '@/redux/slices/productSlice.js';
 
 export default function ProductDetailPage({ params }) {
-  const product = FEATURED_PRODUCTS.find(p => p.id === params.id);
   const [quantity, setQuantity] = useState(1);
-  const [selectedColor, setSelectedColor] = useState('Black');
-  const [selectedSize, setSelectedSize] = useState('Medium');
+  const [selectedColor, setSelectedColor] = useState('');
+  const [selectedSize, setSelectedSize] = useState('');
   const [showReviewModal, setShowReviewModal] = useState(false);
-  const [reviews, setReviews] = useState([
-    { name: 'John D.', text: 'Amazing quality!', rating: 5 },
-    { name: 'Sarah M.', text: 'Very comfortable', rating: 5 },
-  ]);
+  const [reviews, setReviews] = useState([]);
 
   const dispatch = useAppDispatch();
-  const { isAuthenticated } = useAppSelector(state => state.auth);
+  const { 
+    selectedProduct: product, 
+    loading, 
+    error 
+  } = useAppSelector(state => state.products);
+  const { isAuthenticated, user } = useAppSelector(state => state.auth);
+
+  useEffect(() => {
+    if (params.id) {
+      dispatch(getProductById(params.id));
+    }
+  }, [dispatch, params.id]);
+
+  useEffect(() => {
+    if (product) {
+      // Set default selections
+      if (product.color && product.color.length > 0) {
+        setSelectedColor(product.color[0]);
+      }
+      if (product.dimensions && product.dimensions.length > 0) {
+        setSelectedSize(product.dimensions[0]);
+      }
+      // Load reviews if available
+      if (product.reviews) {
+        setReviews(product.reviews);
+      }
+    }
+  }, [product]);
+
+  const handleAddToCart = () => {
+    if (product) {
+      dispatch(addToCart({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        image: product.image || "/placeholder.svg",
+        quantity,
+        color: selectedColor,
+        size: selectedSize
+      }));
+    }
+  };
+
+  const handleAddToWishlist = () => {
+    if (product) {
+      dispatch(addToWishlist({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        image: product.image || "/placeholder.svg",
+        color: selectedColor,
+        size: selectedSize
+      }));
+    }
+  };
+
+  const handleReviewSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!isAuthenticated) {
+      alert('Please login to submit a review');
+      return;
+    }
+
+    const formData = new FormData(e.target);
+    const reviewData = {
+      rating: parseInt(formData.get('rating')),
+      comment: formData.get('review'),
+      userName: user?.name || 'Anonymous',
+      userId: user?.id,
+      productId: params.id
+    };
+
+    try {
+      // Here you would typically make an API call to submit the review
+      const newReview = {
+        id: Date.now().toString(),
+        name: user?.name || 'You',
+        text: reviewData.comment,
+        rating: reviewData.rating,
+        date: new Date().toISOString()
+      };
+      
+      setReviews(prev => [newReview, ...prev]);
+      setShowReviewModal(false);
+      
+      // Reset form
+      e.target.reset();
+    } catch (error) {
+      console.error('Failed to submit review:', error);
+      alert('Failed to submit review. Please try again.');
+    }
+  };
+
+  if (loading) {
+    return (
+      <>
+        <Navbar />
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-foreground/70">Loading product...</p>
+          </div>
+        </div>
+        <Footer />
+      </>
+    );
+  }
+
+  if (error) {
+    return (
+      <>
+        <Navbar />
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-2xl text-red-500 mb-4">Error loading product</p>
+            <p className="text-foreground/70">{error}</p>
+          </div>
+        </div>
+        <Footer />
+      </>
+    );
+  }
 
   if (!product) {
     return (
@@ -33,31 +152,6 @@ export default function ProductDetailPage({ params }) {
       </>
     );
   }
-
-  const handleAddToCart = () => {
-    dispatch(addToCart({
-      id: product.id,
-      name: product.name,
-      price: product.price,
-      image: product.image,
-      quantity,
-    }));
-  };
-
-  const handleReviewSubmit = (e) => {
-    e.preventDefault();
-    if (isAuthenticated) {
-      const newReview = {
-        name: 'You',
-        text: e.target.review.value,
-        rating: parseInt(e.target.rating.value),
-      };
-      setReviews([...reviews, newReview]);
-      setShowReviewModal(false);
-    } else {
-      alert('Please login to submit a review');
-    }
-  };
 
   return (
     <>
@@ -88,57 +182,78 @@ export default function ProductDetailPage({ params }) {
               
               <div className="flex items-center gap-4 mb-6">
                 <span className="text-3xl font-bold text-primary">${product.price}</span>
+                {product.compare_price && (
+                  <span className="text-xl text-foreground/50 line-through">${product.compare_price}</span>
+                )}
                 <div className="flex items-center gap-2">
-                  <span className="text-yellow-400">⭐ {product.rating}</span>
-                  <span className="text-foreground/70">({product.reviews} reviews)</span>
+                  <span className="text-yellow-400">⭐ {product.rating || '4.5'}</span>
+                  <span className="text-foreground/70">({reviews.length} reviews)</span>
                 </div>
               </div>
 
-              <p className="text-foreground/70 mb-8 leading-relaxed">
-                Premium quality furniture crafted with precision and designed for modern living spaces. Features high-end materials and exceptional craftsmanship.
+              <p className="text-foreground/70 mb-4 leading-relaxed">
+                {product.description || product.short_description}
               </p>
+
+              {/* Product Details */}
+              <div className="space-y-2 mb-6 text-sm text-foreground/60">
+                {product.material && (
+                  <p><strong>Material:</strong> {product.material}</p>
+                )}
+                {product.dimensions && (
+                  <p><strong>Dimensions:</strong> {product.dimensions.join(', ')}</p>
+                )}
+                {product.weight && (
+                  <p><strong>Weight:</strong> {product.weight}</p>
+                )}
+                <p><strong>Stock:</strong> {product.stock_quantity || 'In Stock'}</p>
+              </div>
 
               {/* Options */}
               <div className="space-y-6 mb-8">
                 {/* Color */}
-                <div>
-                  <label className="block font-semibold mb-3">Color</label>
-                  <div className="flex gap-3">
-                    {['Black', 'Gray', 'Beige'].map(color => (
-                      <button
-                        key={color}
-                        onClick={() => setSelectedColor(color)}
-                        className={`px-6 py-2 rounded-lg border-2 transition ${
-                          selectedColor === color
-                            ? 'border-primary bg-primary/10'
-                            : 'border-border hover:border-primary'
-                        }`}
-                      >
-                        {color}
-                      </button>
-                    ))}
+                {product.color && product.color.length > 0 && (
+                  <div>
+                    <label className="block font-semibold mb-3">Color</label>
+                    <div className="flex gap-3">
+                      {product.color.map(color => (
+                        <button
+                          key={color}
+                          onClick={() => setSelectedColor(color)}
+                          className={`px-6 py-2 rounded-lg border-2 transition ${
+                            selectedColor === color
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border hover:border-primary'
+                          }`}
+                        >
+                          {color}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Size */}
-                <div>
-                  <label className="block font-semibold mb-3">Size</label>
-                  <div className="flex gap-3">
-                    {['Small', 'Medium', 'Large'].map(size => (
-                      <button
-                        key={size}
-                        onClick={() => setSelectedSize(size)}
-                        className={`px-6 py-2 rounded-lg border-2 transition ${
-                          selectedSize === size
-                            ? 'border-primary bg-primary/10'
-                            : 'border-border hover:border-primary'
-                        }`}
-                      >
-                        {size}
-                      </button>
-                    ))}
+                {/* Size/Dimensions */}
+                {product.dimensions && product.dimensions.length > 0 && (
+                  <div>
+                    <label className="block font-semibold mb-3">Size</label>
+                    <div className="flex gap-3">
+                      {product.dimensions.map(size => (
+                        <button
+                          key={size}
+                          onClick={() => setSelectedSize(size)}
+                          className={`px-6 py-2 rounded-lg border-2 transition ${
+                            selectedSize === size
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border hover:border-primary'
+                          }`}
+                        >
+                          {size}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Quantity */}
                 <div>
@@ -147,6 +262,7 @@ export default function ProductDetailPage({ params }) {
                     <button
                       onClick={() => setQuantity(Math.max(1, quantity - 1))}
                       className="px-4 py-2 bg-accent rounded-lg hover:bg-primary/10 transition"
+                      disabled={quantity <= 1}
                     >
                       −
                     </button>
@@ -154,10 +270,16 @@ export default function ProductDetailPage({ params }) {
                     <button
                       onClick={() => setQuantity(quantity + 1)}
                       className="px-4 py-2 bg-accent rounded-lg hover:bg-primary/10 transition"
+                      disabled={quantity >= (product.stock_quantity || 10)}
                     >
                       +
                     </button>
                   </div>
+                  {product.stock_quantity && (
+                    <p className="text-sm text-foreground/60 mt-2">
+                      {product.stock_quantity} items available
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -167,13 +289,19 @@ export default function ProductDetailPage({ params }) {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleAddToCart}
-                  className="flex-1 py-4 bg-primary text-white rounded-lg font-semibold hover:opacity-90 transition"
+                  disabled={!product.stock_quantity || product.stock_quantity === 0}
+                  className="flex-1 py-4 bg-primary text-white rounded-lg font-semibold hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Add to Cart
+                  {!product.stock_quantity || product.stock_quantity === 0 ? 'Out of Stock' : 'Add to Cart'}
                 </motion.button>
-                <button className="flex-1 py-4 border-2 border-primary text-primary rounded-lg font-semibold hover:bg-primary/10 transition">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleAddToWishlist}
+                  className="flex-1 py-4 border-2 border-primary text-primary rounded-lg font-semibold hover:bg-primary/10 transition"
+                >
                   Add to Wishlist ❤️
-                </button>
+                </motion.button>
               </div>
             </motion.div>
           </motion.div>
@@ -197,17 +325,32 @@ export default function ProductDetailPage({ params }) {
               )}
             </div>
 
-            <div className="space-y-4">
-              {reviews.map((review, idx) => (
-                <div key={idx} className="border-t border-border pt-4 first:border-t-0 first:pt-0">
-                  <div className="flex justify-between items-start mb-2">
-                    <h4 className="font-semibold">{review.name}</h4>
-                    <span className="text-yellow-400">{'⭐'.repeat(review.rating)}</span>
+            {reviews.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-foreground/60">No reviews yet. Be the first to review this product!</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {reviews.map((review, idx) => (
+                  <div key={review.id || idx} className="border-t border-border pt-6 first:border-t-0 first:pt-0">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <h4 className="font-semibold">{review.name}</h4>
+                        {review.date && (
+                          <p className="text-sm text-foreground/60">
+                            {new Date(review.date).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                      <span className="text-yellow-400 text-lg">
+                        {'⭐'.repeat(review.rating)}
+                      </span>
+                    </div>
+                    <p className="text-foreground/70 leading-relaxed">{review.text || review.comment}</p>
                   </div>
-                  <p className="text-foreground/70">{review.text}</p>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             {/* Review Modal */}
             {showReviewModal && (
@@ -230,7 +373,8 @@ export default function ProductDetailPage({ params }) {
                       <select
                         name="rating"
                         defaultValue="5"
-                        className="w-full px-4 py-2 bg-accent rounded-lg border border-border"
+                        className="w-full px-4 py-2 bg-accent rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary"
+                        required
                       >
                         <option value="5">⭐⭐⭐⭐⭐ 5 Stars</option>
                         <option value="4">⭐⭐⭐⭐ 4 Stars</option>
@@ -246,7 +390,8 @@ export default function ProductDetailPage({ params }) {
                         required
                         className="w-full px-4 py-3 bg-accent rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary"
                         rows="4"
-                        placeholder="Share your experience..."
+                        placeholder="Share your experience with this product..."
+                        minLength="10"
                       />
                     </div>
                     <div className="flex gap-3">
@@ -254,7 +399,7 @@ export default function ProductDetailPage({ params }) {
                         type="submit"
                         className="flex-1 py-2 bg-primary text-white rounded-lg font-semibold hover:opacity-90 transition"
                       >
-                        Submit
+                        Submit Review
                       </button>
                       <button
                         type="button"

@@ -30,7 +30,7 @@ export default function AboutPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              <h1 className="text-5xl font-bold mb-6">About LuxeFurn</h1>
+              <h1 className="text-5xl font-bold mb-6">About Luxury Furniture</h1>
               <p className="text-xl text-foreground/70">
                 Crafting luxury furniture that transforms living spaces into sanctuaries of comfort and style.
               </p>
@@ -49,7 +49,7 @@ export default function AboutPage() {
             >
               <h2 className="text-4xl font-bold mb-6">Our Story</h2>
               <p className="text-lg text-foreground/70 mb-4 leading-relaxed">
-                Founded in 2015, LuxeFurn began with a simple vision: to bring premium, designer furniture within reach of everyone. What started as a small showroom has grown into a trusted name in luxury home furnishings.
+                Founded in 2015, Luxury Furniture began with a simple vision: to bring premium, designer furniture within reach of everyone. What started as a small showroom has grown into a trusted name in luxury home furnishings.
               </p>
               <p className="text-lg text-foreground/70 leading-relaxed">
                 Today, we partner with the world's best designers to curate an exclusive collection that combines exceptional quality with contemporary aesthetics.

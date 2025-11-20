@@ -58,19 +58,19 @@ export const FEATURED_PRODUCTS = [
 
 export const TESTIMONIALS = [
   {
-    name: 'Sarah Johnson',
+    name: 'Devendra Singh',
     role: 'Interior Designer',
     content: 'The quality and design of these furniture pieces exceeded my expectations. Perfect for my projects!',
     image: '/placeholder-user.jpg',
   },
   {
-    name: 'Michael Chen',
+    name: 'Arpita Roy',
     role: 'Homeowner',
     content: 'Delivered quickly and the build quality is outstanding. Highly recommend to anyone!',
     image: '/placeholder-user.jpg',
   },
   {
-    name: 'Emma Davis',
+    name: 'Ankit Mehta',
     role: 'Architect',
     content: 'Working with this furniture brand has been seamless. They understand modern design perfectly.',
     image: '/placeholder-user.jpg',

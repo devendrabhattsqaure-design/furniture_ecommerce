@@ -15,41 +15,63 @@ export default function TestimonialSlider() {
   }, []);
 
   return (
-    <section className="py-16 px-4 bg-background">
-      <div className="max-w-4xl mx-auto">
-        <h2 className="text-4xl font-bold text-center mb-12">What Our Customers Say</h2>
+    <section className="py-20 px-4 bg-gradient-to-b from-background to-muted/40">
+      <div className="max-w-5xl mx-auto">
+        <motion.h2
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="text-4xl md:text-5xl font-extrabold text-center mb-14 tracking-tight"
+        >
+          What Our Customers Say
+        </motion.h2>
 
-        <div className="relative h-64 flex items-center">
+        <div className="relative h-72 flex items-center justify-center">
           <AnimatePresence mode="wait">
             <motion.div
               key={current}
-              initial={{ opacity: 0, x: 100 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -100 }}
-              transition={{ duration: 0.5 }}
-              className="bg-accent rounded-2xl p-8 text-center"
+              initial={{ opacity: 0, scale: 0.9, y: 40 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: -40 }}
+              transition={{ duration: 0.6, ease: 'easeOut' }}
+              className="
+                backdrop-blur-xl bg-white/10 border border-white/20
+                shadow-xl p-10 rounded-3xl max-w-3xl mx-auto text-center
+                flex flex-col items-center space-y-5
+              "
             >
-              <p className="text-lg mb-4 italic">{TESTIMONIALS[current].content}</p>
-              <div className="flex flex-col items-center gap-2">
-                <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-                  👤
-                </div>
-                <h4 className="font-semibold">{TESTIMONIALS[current].name}</h4>
-                <p className="text-sm text-foreground/70">{TESTIMONIALS[current].role}</p>
+              {/* Avatar */}
+              <div className="
+                w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center
+                shadow-md text-3xl
+              ">
+                👤
+              </div>
+
+              <p className="text-lg md:text-xl italic text-foreground/90 leading-relaxed">
+                “{TESTIMONIALS[current].content}”
+              </p>
+
+              <div className="flex flex-col items-center">
+                <h4 className="text-xl font-semibold">{TESTIMONIALS[current].name}</h4>
+                <p className="text-sm text-foreground/60">{TESTIMONIALS[current].role}</p>
               </div>
             </motion.div>
           </AnimatePresence>
         </div>
 
         {/* Dots */}
-        <div className="flex justify-center gap-2 mt-8">
+        <div className="flex justify-center gap-3 mt-10">
           {TESTIMONIALS.map((_, idx) => (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.15 }}
+              whileTap={{ scale: 0.9 }}
               key={idx}
               onClick={() => setCurrent(idx)}
-              className={`h-2 rounded-full transition ${
-                idx === current ? 'bg-primary w-8' : 'bg-border w-2'
-              }`}
+              className={`
+                h-3 rounded-full transition-all
+                ${idx === current ? 'w-10 bg-primary' : 'w-3 bg-foreground/20'}
+              `}
             />
           ))}
         </div>

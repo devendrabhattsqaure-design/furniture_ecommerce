@@ -1,35 +1,49 @@
+// app/login/page.jsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAppDispatch } from '@/redux/hooks.js';
-import { setUser } from '@/redux/slices/authSlice.js';
-import { mockLogin } from '@/services/auth.js';
+import { useAppDispatch, useAppSelector } from '@/redux/hooks.js';
+import { loginUser } from '@/redux/slices/authSlice.js';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  
   const dispatch = useAppDispatch();
   const router = useRouter();
+  const { loading, error, isAuthenticated } = useAppSelector(state => state.auth);
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      console.log('User is authenticated, redirecting to home...');
+      router.push('/');
+    }
+  }, [isAuthenticated, router]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
-
+    
     try {
-      const user = await mockLogin(email, password);
-      dispatch(setUser(user));
-      router.push('/');
-    } catch (err) {
-      setError('Login failed. Please try again.');
-    } finally {
-      setLoading(false);
+      console.log('Starting login process...');
+      const result = await dispatch(loginUser(email, password));
+      console.log('Login result:', result);
+      
+      // Check if login was successful by looking at the action type
+      if (result.type.endsWith('/fulfilled')) {
+        console.log('Login successful, checking authentication state...');
+        // The state should be updated by now, so we can check isAuthenticated
+        // Or we can redirect directly since we know it was successful
+        setTimeout(() => {
+          router.push('/');
+        }, 100);
+      }
+    } catch (error) {
+      console.error('Login failed:', error);
     }
   };
 
@@ -78,7 +92,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/60"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/60 hover:text-foreground transition-colors"
                 >
                   {showPassword ? '👁️' : '👁️‍🗨️'}
                 </button>

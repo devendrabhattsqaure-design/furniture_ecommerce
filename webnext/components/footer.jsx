@@ -30,7 +30,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-8 mb-8">
           {/* Brand */}
           <div>
-            <h3 className="text-2xl font-bold text-primary mb-4">LuxeFurn</h3>
+            <h3 className="text-2xl font-bold text-primary mb-4">Luxury Furniture</h3>
             <p className="text-foreground/70">Premium furniture for your dreams</p>
           </div>
 
@@ -55,7 +55,7 @@ export default function Footer() {
         <div className="border-t border-border pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-foreground/70 text-sm">
-              © 2025 LuxeFurn. All rights reserved.
+              © 2025 Luxury Furniture. All rights reserved.
             </p>
             <div className="flex gap-4">
               <a href="#" className="text-2xl hover:opacity-70">

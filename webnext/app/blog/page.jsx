@@ -37,7 +37,7 @@ export default function BlogPage() {
             className="text-center mb-12"
           >
             <h1 className="text-5xl font-bold mb-4">Our Blog</h1>
-            <p className="text-xl text-foreground/70">Tips, trends, and stories from LuxeFurn</p>
+            <p className="text-xl text-foreground/70">Tips, trends, and stories from Luxury Furniture</p>
           </motion.div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">

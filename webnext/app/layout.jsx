@@ -8,7 +8,7 @@ const geistSans = Geist({ subsets: ['latin'] });
 const geistMono = Geist_Mono({ subsets: ['latin'] });
 
 export const metadata = {
-  title: 'LuxeFurn - Premium Furniture',
+  title: 'Luxury Furniture - Premium Furniture',
   description: 'Discover premium, modern furniture for your home',
   generator: 'v0.app'
 };

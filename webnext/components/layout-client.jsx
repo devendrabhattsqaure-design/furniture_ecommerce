@@ -17,7 +17,7 @@ export default function LayoutClient({ children }) {
         exit={{ opacity: 0 }}
         transition={{ duration: 0.3 }}
       >
-        {!isAuthPage && <Navbar />}
+        {/* {!isAuthPage && <Navbar />} */}
         {children}
       </motion.div>
     </AnimatePresence>
