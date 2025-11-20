@@ -1,0 +1,105 @@
+@import 'tailwindcss';
+
+@theme inline {
+  --font-sans: 'Geist', 'Geist Fallback';
+  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  
+  /* Light mode colors */
+  --color-primary: #ef4444;
+  --color-secondary: #000000;
+  --color-background: #ffffff;
+  --color-text: #1f2937;
+  --color-accent: #f3f4f6;
+  --color-border: #e5e7eb;
+
+  --radius: 0.5rem;
+}
+
+/* CSS Variables for dynamic theming moved outside @theme block per Tailwind v4 spec */
+:root {
+  --color-primary: rgb(239 68 68);
+  --color-secondary: rgb(0 0 0);
+  --color-background: rgb(255 255 255);
+  --color-text: rgb(31 41 55);
+  --color-accent: rgb(243 244 246);
+  --color-border: rgb(229 231 235);
+}
+
+/* Dark mode variables using prefers-color-scheme outside @theme block */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-primary: rgb(248 113 113);
+    --color-secondary: rgb(255 255 255);
+    --color-background: rgb(15 23 42);
+    --color-text: rgb(243 244 246);
+    --color-accent: rgb(30 41 59);
+    --color-border: rgb(51 65 85);
+  }
+}
+
+html[data-theme='dark'] {
+  --color-primary: rgb(248 113 113);
+  --color-secondary: rgb(255 255 255);
+  --color-background: rgb(15 23 42);
+  --color-text: rgb(243 244 246);
+  --color-accent: rgb(30 41 59);
+  --color-border: rgb(51 65 85);
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-text);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+* {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+@keyframes ripple {
+  from {
+    transform: scale(0);
+    opacity: 1;
+  }
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+.ripple {
+  animation: ripple 0.6s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
