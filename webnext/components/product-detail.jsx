@@ -8,7 +8,6 @@ import Navbar from '@/components/navbar.jsx';
 import Footer from '@/components/footer.jsx';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks.js';
 import { addToCart } from '@/redux/slices/cartSlice.js';
-import { addToWishlist } from '@/redux/slices/wishlistSlice.js';
 import { getProductById } from '@/redux/slices/productSlice.js';
 
 export default function ProductDetail() {
@@ -16,8 +15,6 @@ export default function ProductDetail() {
   const productId = params.id;
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
-  const [showReviewModal, setShowReviewModal] = useState(false);
-  const [reviews, setReviews] = useState([]);
 
   const dispatch = useAppDispatch();
   const { 
@@ -25,19 +22,22 @@ export default function ProductDetail() {
     loading, 
     error 
   } = useAppSelector(state => state.products);
-  const { isAuthenticated, user } = useAppSelector(state => state.auth);
+
+  console.log('Product Detail Debug:', {
+    productId,
+    product,
+    loading,
+    error,
+    hasImages: product?.images?.length,
+    imageData: product?.images
+  });
 
   useEffect(() => {
     if (productId) {
+      console.log('Dispatching getProductById with ID:', productId);
       dispatch(getProductById(productId));
     }
   }, [dispatch, productId]);
-
-  useEffect(() => {
-    if (product && product.reviews) {
-      setReviews(product.reviews);
-    }
-  }, [product]);
 
   const handleAddToCart = () => {
     if (product) {
@@ -48,52 +48,6 @@ export default function ProductDetail() {
         image: product.images?.[0]?.image_url || "/placeholder.svg",
         quantity: quantity
       }));
-    }
-  };
-
-  const handleAddToWishlist = () => {
-    if (product) {
-      dispatch(addToWishlist({
-        id: product.product_id,
-        name: product.product_name,
-        price: product.price,
-        image: product.images?.[0]?.image_url || "/placeholder.svg"
-      }));
-    }
-  };
-
-  const handleReviewSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!isAuthenticated) {
-      alert('Please login to submit a review');
-      return;
-    }
-
-    const formData = new FormData(e.target);
-    const reviewData = {
-      rating: parseInt(formData.get('rating')),
-      comment: formData.get('review'),
-      userName: user?.name || 'Anonymous',
-      userId: user?.id,
-      productId: productId
-    };
-
-    try {
-      const newReview = {
-        id: Date.now().toString(),
-        name: user?.name || 'You',
-        text: reviewData.comment,
-        rating: reviewData.rating,
-        date: new Date().toISOString()
-      };
-      
-      setReviews(prev => [newReview, ...prev]);
-      setShowReviewModal(false);
-      e.target.reset();
-    } catch (error) {
-      console.error('Failed to submit review:', error);
-      alert('Failed to submit review. Please try again.');
     }
   };
 
@@ -120,6 +74,12 @@ export default function ProductDetail() {
           <div className="text-center">
             <p className="text-2xl text-red-500 mb-4">Error loading product</p>
             <p className="text-foreground/70">{error}</p>
+            <button 
+              onClick={() => dispatch(getProductById(productId))}
+              className="mt-4 px-4 py-2 bg-primary text-white rounded"
+            >
+              Retry
+            </button>
           </div>
         </div>
         <Footer />
@@ -147,26 +107,12 @@ export default function ProductDetail() {
       <Navbar />
       <div className="min-h-screen bg-background py-12 px-4">
         <div className="max-w-6xl mx-auto">
-          {/* Breadcrumb */}
-          <nav className="flex mb-8" aria-label="Breadcrumb">
-            <ol className="flex items-center space-x-2 text-sm">
-              <li>
-                <a href="/" className="text-foreground/60 hover:text-foreground">
-                  Home
-                </a>
-              </li>
-              <li className="flex items-center">
-                <span className="text-foreground/30 mx-2">/</span>
-                <a href="/products" className="text-foreground/60 hover:text-foreground">
-                  Products
-                </a>
-              </li>
-              <li className="flex items-center">
-                <span className="text-foreground/30 mx-2">/</span>
-                <span className="text-foreground">{product.product_name}</span>
-              </li>
-            </ol>
-          </nav>
+          {/* Debug Info - Remove in production */}
+          <div className="bg-yellow-100 p-4 rounded mb-4 text-sm">
+            <strong>Debug Info:</strong> Product ID: {product.product_id}, 
+            Images: {images.length}, 
+            Has Data: {product ? 'Yes' : 'No'}
+          </div>
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -185,6 +131,9 @@ export default function ProductDetail() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.3 }}
+                  onError={(e) => {
+                    e.target.src = "/placeholder.svg";
+                  }}
                 />
               </div>
 
@@ -193,7 +142,7 @@ export default function ProductDetail() {
                 <div className="grid grid-cols-4 gap-4">
                   {images.map((image, index) => (
                     <button
-                      key={image.image_id}
+                      key={image.image_id || index}
                       onClick={() => setSelectedImage(index)}
                       className={`bg-accent rounded-lg overflow-hidden border-2 ${
                         selectedImage === index ? 'border-primary' : 'border-transparent'
@@ -203,6 +152,9 @@ export default function ProductDetail() {
                         src={image.image_url}
                         alt={`${product.product_name} ${index + 1}`}
                         className="w-full h-20 object-cover"
+                        onError={(e) => {
+                          e.target.src = "/placeholder.svg";
+                        }}
                       />
                     </button>
                   ))}
@@ -256,15 +208,6 @@ export default function ProductDetail() {
               <p className="text-foreground/60">
                 SKU: <span className="text-foreground">{product.sku}</span>
               </p>
-
-              {/* Rating */}
-              <div className="flex items-center gap-2">
-                <div className="flex text-yellow-400">
-                  {'★'.repeat(4)}{'☆'.repeat(1)}
-                </div>
-                <span className="text-foreground/60">(4.5)</span>
-                <span className="text-foreground/60">({reviews.length} reviews)</span>
-              </div>
 
               {/* Price */}
               <div className="flex items-center gap-4">
@@ -352,24 +295,16 @@ export default function ProductDetail() {
                 </div>
               </div>
 
-              {/* Add to Cart & Wishlist Buttons */}
-              <div className="flex gap-4 pt-6">
+              {/* Add to Cart Button */}
+              <div className="pt-6">
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleAddToCart}
                   disabled={!product.stock_quantity || product.stock_quantity === 0}
-                  className="flex-1 py-4 bg-primary text-white rounded-lg font-semibold hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full py-4 bg-primary text-white rounded-lg font-semibold hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {!product.stock_quantity || product.stock_quantity === 0 ? 'Out of Stock' : 'Add to Cart'}
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleAddToWishlist}
-                  className="flex-1 py-4 border-2 border-primary text-primary rounded-lg font-semibold hover:bg-primary/10 transition"
-                >
-                  Add to Wishlist
                 </motion.button>
               </div>
             </motion.div>
@@ -385,121 +320,12 @@ export default function ProductDetail() {
             >
               <h2 className="text-2xl font-bold mb-4">Product Description</h2>
               <div className="prose max-w-none">
-                <p className="text-foreground/80 leading-relaxed whitespace-pre-line">
-                  {product.description}
+                <p className="text-foreground/80 leading-relaxed whitespace-pre-line ">
+                  {product.description} 
                 </p>
               </div>
             </motion.div>
           )}
-
-          {/* Reviews Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="bg-accent rounded-2xl p-8"
-          >
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">Customer Reviews</h2>
-              {isAuthenticated && (
-                <button
-                  onClick={() => setShowReviewModal(true)}
-                  className="px-6 py-2 bg-primary text-white rounded-lg hover:opacity-90 transition"
-                >
-                  Write Review
-                </button>
-              )}
-            </div>
-
-            {reviews.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-foreground/60">No reviews yet. Be the first to review this product!</p>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {reviews.map((review, idx) => (
-                  <div key={review.id || idx} className="border-t border-border pt-6 first:border-t-0 first:pt-0">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <h4 className="font-semibold">{review.name}</h4>
-                        {review.date && (
-                          <p className="text-sm text-foreground/60">
-                            {new Date(review.date).toLocaleDateString()}
-                          </p>
-                        )}
-                      </div>
-                      <span className="text-yellow-400 text-lg">
-                        {'⭐'.repeat(review.rating)}
-                      </span>
-                    </div>
-                    <p className="text-foreground/70 leading-relaxed">{review.text || review.comment}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Review Modal */}
-            {showReviewModal && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                onClick={() => setShowReviewModal(false)}
-                className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-              >
-                <motion.div
-                  initial={{ scale: 0.9 }}
-                  animate={{ scale: 1 }}
-                  onClick={e => e.stopPropagation()}
-                  className="bg-background rounded-2xl p-6 max-w-md w-full"
-                >
-                  <h3 className="text-2xl font-bold mb-4">Write a Review</h3>
-                  <form onSubmit={handleReviewSubmit} className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium mb-2">Rating</label>
-                      <select
-                        name="rating"
-                        defaultValue="5"
-                        className="w-full px-4 py-2 bg-accent rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary"
-                        required
-                      >
-                        <option value="5">⭐⭐⭐⭐⭐ 5 Stars</option>
-                        <option value="4">⭐⭐⭐⭐ 4 Stars</option>
-                        <option value="3">⭐⭐⭐ 3 Stars</option>
-                        <option value="2">⭐⭐ 2 Stars</option>
-                        <option value="1">⭐ 1 Star</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-2">Your Review</label>
-                      <textarea
-                        name="review"
-                        required
-                        className="w-full px-4 py-3 bg-accent rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary"
-                        rows="4"
-                        placeholder="Share your experience with this product..."
-                        minLength="10"
-                      />
-                    </div>
-                    <div className="flex gap-3">
-                      <button
-                        type="submit"
-                        className="flex-1 py-2 bg-primary text-white rounded-lg font-semibold hover:opacity-90 transition"
-                      >
-                        Submit Review
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setShowReviewModal(false)}
-                        className="flex-1 py-2 border border-primary text-primary rounded-lg font-semibold hover:bg-primary/10 transition"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
-                </motion.div>
-              </motion.div>
-            )}
-          </motion.div>
         </div>
       </div>
       <Footer />

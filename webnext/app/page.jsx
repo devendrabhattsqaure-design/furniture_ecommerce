@@ -10,7 +10,9 @@ import Newsletter from '@/components/newsletter.jsx';
 import CTABanner from '@/components/cta-banner.jsx';
 import TestimonialSlider from '@/components/testimonial-slider.jsx';
 import ScrollReveal from '@/components/scroll-reveal.jsx';
-import { FEATURED_PRODUCTS } from '@/lib/constants.js';
+import { useAppDispatch, useAppSelector } from '@/redux/hooks.js';
+import { getProducts } from '@/redux/slices/productSlice.js';
+import { get } from 'http';
 
 const BANNER_SLIDES = [
   {
@@ -46,6 +48,27 @@ export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const { scrollYProgress } = useScroll();
   
+  const dispatch = useAppDispatch();
+  const { 
+    products, 
+    loading: productsLoading, 
+    error: productsError 
+  } = useAppSelector(state => state.products);
+
+  
+useEffect(() => {
+  console.log('Fetching featured products...');
+  dispatch(getProducts({ is_featured: true, limit: 6 }))
+    .then(result => {
+      console.log('Products fetch result:', result);
+      console.log('Products in state:', products);
+      console.log('Featured products:', featuredProducts);
+    })
+    .catch(error => {
+      console.error('Error fetching products:', error);
+    });
+}, [dispatch]);
+
   const smoothProgress = useSpring(scrollYProgress, {
     stiffness: 100,
     damping: 30,
@@ -67,29 +90,15 @@ export default function Home() {
   const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % BANNER_SLIDES.length);
   const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + BANNER_SLIDES.length) % BANNER_SLIDES.length);
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: { staggerChildren: 0.1 },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.6 },
-    },
-  };
+  // Get featured products for display
+  const featuredProducts = products?.filter(product => product.is_featured) || [];
 
   return (
     <>
       <Navbar />
       
       {/* Banner Slider */}
-<section className="relative h-[90vh] overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800">
+      <section className="relative h-[90vh] overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800">
         {/* Animated Background Particles */}
         <motion.div
           style={{ y, opacity }}
@@ -110,8 +119,8 @@ export default function Home() {
               }}
               className="absolute w-1 h-1 bg-white rounded-full"
               style={{
-                left: `₹{Math.random() * 100}%`,
-                top: `₹{Math.random() * 100}%`
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`
               }}
             />
           ))}
@@ -120,7 +129,6 @@ export default function Home() {
         {/* Slides */}
         {BANNER_SLIDES.map((slide, index) => (
           <motion.div
-          
             key={slide.id}
             initial={{ opacity: 0 }}
             animate={{
@@ -129,10 +137,10 @@ export default function Home() {
               zIndex: currentSlide === index ? 1 : 0
             }}
             transition={{ duration: 0.7 }}
-            className={`absolute inset-0 bg-gradient-to-br ₹{slide.bg}`}
+            className={`absolute inset-0 bg-gradient-to-br ${slide.bg}`}
           >
             {/* Gradient Overlay */}
-            <div className="absolute  inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent z-10" />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent z-10" />
             
             {/* Background Image */}
             <motion.img
@@ -219,20 +227,6 @@ export default function Home() {
           </motion.div>
         ))}
 
-        {/* Navigation Arrows */}
-        {/* <button
-          onClick={prevSlide}
-          className="absolute left-8 top-1/2 -translate-y-1/2 z-30 w-14 h-14 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center hover:bg-white/20 transition-all group"
-        >
-          <ChevronLeft className="w-6 h-6 text-white group-hover:-translate-x-1 transition-transform" />
-        </button>
-        <button
-          onClick={nextSlide}
-          className="absolute right-8 top-1/2 -translate-y-1/2 z-30 w-14 h-14 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center hover:bg-white/20 transition-all group"
-        >
-          <ChevronRight className="w-6 h-6 text-white group-hover:translate-x-1 transition-transform" />
-        </button> */}
-
         {/* Slide Indicators */}
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 flex gap-3">
           {BANNER_SLIDES.map((_, index) => (
@@ -253,22 +247,6 @@ export default function Home() {
             </button>
           ))}
         </div>
-
-        {/* Scroll Indicator */}
-        {/* <motion.div
-          animate={{ y: [0, 10, 0] }}
-          transition={{ duration: 1.5, repeat: Infinity }}
-          className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2 text-white/60"
-        >
-          <span className="text-xs uppercase tracking-widest">Scroll</span>
-          <div className="w-6 h-10 border-2 border-white/30 rounded-full flex justify-center">
-            <motion.div
-              animate={{ y: [0, 12, 0] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-              className="w-1 h-2 bg-white/60 rounded-full mt-2"
-            />
-          </div>
-        </motion.div> */}
       </section>
 
       {/* 3D Parallax Features Section */}
@@ -353,24 +331,55 @@ export default function Home() {
             </p>
           </motion.div>
 
-          <motion.div
-            variants={containerVariants}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
-          >
-            {FEATURED_PRODUCTS.map((product, idx) => (
-              <motion.div 
-                key={product.id} 
-                variants={itemVariants}
-                whileHover={{ y: -10 }}
-                transition={{ type: "spring", stiffness: 300 }}
-              >
-                <ProductCard {...product} />
-              </motion.div>
-            ))}
-          </motion.div>
+          {/* Products Grid */}
+          {productsLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[1, 2, 3, 4, 5, 6].map(i => (
+                <div key={i} className="bg-accent rounded-lg p-4 animate-pulse">
+                  <div className="h-48 bg-gray-300 rounded mb-4"></div>
+                  <div className="h-4 bg-gray-300 rounded mb-2"></div>
+                  <div className="h-4 bg-gray-300 rounded w-3/4"></div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            // In the Featured Products section, replace this part:
+<motion.div
+  layout
+  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+>
+  {featuredProducts.map((product) => (
+    <motion.div
+      key={product.product_id}
+      layout
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <ProductCard 
+        id={product.product_id}
+        name={product.product_name}
+        price={product.price}
+        compare_price={product.compare_price}
+        image={product.images?.[0]?.image_url || '/placeholder.svg'}
+        rating={product.rating || 4.5}
+        is_featured={product.is_featured}
+        is_on_sale={product.is_on_sale}
+        is_bestseller={product.is_bestseller}
+        is_new_arrival={product.is_new_arrival}
+        stock_quantity={product.stock_quantity}
+      />
+    </motion.div>
+  ))}
+</motion.div>
+          )}
+
+          {/* No Products Message */}
+          {!productsLoading && featuredProducts.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-foreground/70 text-lg">No featured products found</p>
+            </div>
+          )}
 
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}

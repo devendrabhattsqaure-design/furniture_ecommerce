@@ -268,6 +268,31 @@ const handleSubmit = async (e) => {
     setShowModal(true);
   };
 
+  const handleDelete = async (productId) => {
+  if (!window.confirm('Are you sure you want to delete this product?')) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`http://localhost:5000/api/products/${productId}`, {
+      method: 'DELETE',
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      // Remove the product from the local state
+      setProducts(products.filter(product => product.product_id !== productId));
+      alert('Product deleted successfully');
+    } else {
+      alert(result.message || 'Error deleting product');
+    }
+  } catch (error) {
+    console.error('Error deleting product:', error);
+    alert('Error deleting product');
+  }
+};
+
   return (
     <div className="mt-12">
       {/* Stats Cards */}
