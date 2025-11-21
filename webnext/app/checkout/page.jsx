@@ -102,7 +102,7 @@ export default function CheckoutPage() {
                                 </button>
                               </div>
                               <span className="text-primary font-semibold">
-                                ${(item.price * item.quantity).toFixed(2)}
+                                 ₹{(item.price * item.quantity).toFixed(2)}
                               </span>
                               <button
                                 onClick={() => handleRemove(item.id)}
@@ -214,20 +214,20 @@ export default function CheckoutPage() {
               <div className="space-y-2 pb-4 border-b border-border">
                 <div className="flex justify-between">
                   <span>Subtotal</span>
-                  <span>${totalPrice.toFixed(2)}</span>
+                  <span> ₹{totalPrice.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Shipping</span>
-                  <span>$0</span>
+                  <span> ₹0</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Tax</span>
-                  <span>${(totalPrice * 0.08).toFixed(2)}</span>
+                  <span> ₹{(totalPrice * 0.08).toFixed(2)}</span>
                 </div>
               </div>
               <div className="flex justify-between text-lg font-bold pt-4 text-primary">
                 <span>Total</span>
-                <span>${(totalPrice * 1.08).toFixed(2)}</span>
+                <span> ₹{(totalPrice * 1.08).toFixed(2)}</span>
               </div>
             </motion.div>
           </div>

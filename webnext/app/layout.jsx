@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import './globals.css';
 import { ReduxProvider } from '@/redux/provider.jsx';
 import LayoutClient from '@/components/layout-client.jsx';
+import CartHydration from '@/components/cart-hydration.jsx';
 
 const geistSans = Geist({ subsets: ['latin'] });
 const geistMono = Geist_Mono({ subsets: ['latin'] });
@@ -22,10 +23,11 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth">
       <head />
       <body className={`${geistSans.className} bg-background text-foreground`}>
         <ReduxProvider>
+           <CartHydration />
           <LayoutClient>{children}</LayoutClient>
         </ReduxProvider>
       </body>

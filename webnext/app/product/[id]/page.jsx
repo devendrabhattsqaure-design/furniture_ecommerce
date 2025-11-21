@@ -157,7 +157,7 @@ export default function ProductDetail() {
               </li>
               <li className="flex items-center">
                 <span className="text-foreground/30 mx-2">/</span>
-                <a href="/products" className="text-foreground/60 hover:text-foreground">
+                <a href="/shop" className="text-foreground/60 hover:text-foreground">
                   Products
                 </a>
               </li>

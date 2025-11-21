@@ -2,6 +2,7 @@
 
 import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Package, Shield, Sparkles, Star, ArrowRight, Zap } from 'lucide-react';
 import Navbar from '@/components/navbar.jsx';
 import Footer from '@/components/footer.jsx';
@@ -12,7 +13,6 @@ import TestimonialSlider from '@/components/testimonial-slider.jsx';
 import ScrollReveal from '@/components/scroll-reveal.jsx';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks.js';
 import { getProducts } from '@/redux/slices/productSlice.js';
-import { get } from 'http';
 
 const BANNER_SLIDES = [
   {
@@ -46,7 +46,9 @@ const BANNER_SLIDES = [
 
 export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const { scrollYProgress } = useScroll();
+  const router = useRouter();
   
   const dispatch = useAppDispatch();
   const { 
@@ -55,19 +57,25 @@ export default function Home() {
     error: productsError 
   } = useAppSelector(state => state.products);
 
-  
-useEffect(() => {
-  console.log('Fetching featured products...');
-  dispatch(getProducts({ is_featured: true, limit: 6 }))
-    .then(result => {
-      console.log('Products fetch result:', result);
-      console.log('Products in state:', products);
-      console.log('Featured products:', featuredProducts);
-    })
-    .catch(error => {
-      console.error('Error fetching products:', error);
-    });
-}, [dispatch]);
+  // Fetch featured products on mount AND when returning to page
+  useEffect(() => {
+    console.log('Home page mounted/visited, fetching featured products...');
+    
+    const fetchFeaturedProducts = async () => {
+      try {
+        await dispatch(getProducts({ is_featured: true, limit: 6 }));
+        setIsInitialLoad(false);
+      } catch (error) {
+        console.error('Error fetching products:', error);
+        setIsInitialLoad(false);
+      }
+    };
+
+    fetchFeaturedProducts();
+    
+    // Reset scroll position when page loads
+    window.scrollTo(0, 0);
+  }, []); // Empty dependency array ensures this runs on every mount
 
   const smoothProgress = useSpring(scrollYProgress, {
     stiffness: 100,
@@ -343,35 +351,34 @@ useEffect(() => {
               ))}
             </div>
           ) : (
-            // In the Featured Products section, replace this part:
-<motion.div
-  layout
-  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
->
-  {featuredProducts.map((product) => (
-    <motion.div
-      key={product.product_id}
-      layout
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-    >
-      <ProductCard 
-        id={product.product_id}
-        name={product.product_name}
-        price={product.price}
-        compare_price={product.compare_price}
-        image={product.images?.[0]?.image_url || '/placeholder.svg'}
-        rating={product.rating || 4.5}
-        is_featured={product.is_featured}
-        is_on_sale={product.is_on_sale}
-        is_bestseller={product.is_bestseller}
-        is_new_arrival={product.is_new_arrival}
-        stock_quantity={product.stock_quantity}
-      />
-    </motion.div>
-  ))}
-</motion.div>
+            <motion.div
+              layout
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+            >
+              {featuredProducts.map((product) => (
+                <motion.div
+                  key={product.product_id}
+                  layout
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <ProductCard 
+                    id={product.product_id}
+                    name={product.product_name}
+                    price={product.price}
+                    compare_price={product.compare_price}
+                    image={product.images?.[0]?.image_url || '/placeholder.svg'}
+                    rating={product.rating || 4.5}
+                    is_featured={product.is_featured}
+                    is_on_sale={product.is_on_sale}
+                    is_bestseller={product.is_bestseller}
+                    is_new_arrival={product.is_new_arrival}
+                    stock_quantity={product.stock_quantity}
+                  />
+                </motion.div>
+              ))}
+            </motion.div>
           )}
 
           {/* No Products Message */}

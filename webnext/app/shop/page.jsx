@@ -3,6 +3,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Navbar from '@/components/navbar.jsx';
 import Footer from '@/components/footer.jsx';
 import ProductCard from '@/components/product-card.jsx';
@@ -23,8 +24,12 @@ export default function ShopPage() {
   const [priceRange, setPriceRange] = useState([0, 50000]);
   const [sortBy, setSortBy] = useState('featured');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const dispatch = useAppDispatch();
+  
   const { 
     products, 
     loading: productsLoading, 
@@ -37,14 +42,51 @@ export default function ShopPage() {
     loading: categoriesLoading 
   } = useAppSelector(state => state.categories);
 
-  // Fetch categories and products on component mount
+  // Fetch categories and products on component mount (every visit)
   useEffect(() => {
-    dispatch(getCategories());
-    dispatch(getProducts());
-  }, [dispatch]);
+    console.log('ShopPage mounted/visited, fetching data...');
+    
+    const fetchInitialData = async () => {
+      try {
+        // Fetch categories first
+        await dispatch(getCategories());
+        
+        // Build initial filters
+        const filters = {};
+        const categoryFromParams = searchParams.get('category');
+        const searchFromParams = searchParams.get('search');
+        
+        if (categoryFromParams) {
+          filters.category_id = categoryFromParams;
+          setSelectedCategory(categoryFromParams);
+        }
+        
+        if (searchFromParams) {
+          filters.search = searchFromParams;
+          setSearchQuery(searchFromParams);
+        }
+        
+        // Fetch products with filters
+        await dispatch(getProducts(filters));
+        setIsInitialLoad(false);
+      } catch (error) {
+        console.error('Error fetching initial data:', error);
+        setIsInitialLoad(false);
+      }
+    };
 
-  // Fetch products when filters change
+    fetchInitialData();
+    
+    // Reset scroll position when page loads
+    window.scrollTo(0, 0);
+  }, []); // Empty dependency ensures this runs on every mount
+
+  // Fetch products when filters change (but skip initial load)
   useEffect(() => {
+    if (isInitialLoad) return;
+
+    console.log('Filters changed, fetching products...');
+    
     const filters = {};
     
     if (selectedCategory !== 'all') {
@@ -61,9 +103,11 @@ export default function ShopPage() {
     }
 
     dispatch(getProducts(filters));
-  }, [selectedCategory, priceRange, searchQuery, dispatch]);
+  }, [selectedCategory, priceRange, searchQuery, isInitialLoad, dispatch]);
 
   const filteredAndSortedProducts = useMemo(() => {
+    if (!products || products.length === 0) return [];
+
     let filtered = [...products];
 
     // Apply sorting
@@ -94,6 +138,22 @@ export default function ShopPage() {
     e.preventDefault();
     // Search is already handled in the useEffect
   };
+
+  // Add loading state for initial page load
+  if (isInitialLoad && productsLoading) {
+    return (
+      <>
+        <Navbar />
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+            <p className="mt-4 text-foreground/70">Loading shop...</p>
+          </div>
+        </div>
+        <Footer />
+      </>
+    );
+  }
 
   return (
     <>

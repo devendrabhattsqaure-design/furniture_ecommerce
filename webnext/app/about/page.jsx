@@ -108,9 +108,9 @@ export default function AboutPage() {
             <h2 className="text-4xl font-bold text-center mb-12">Our Team</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {[
-                { name: 'Emma Johnson', role: 'Founder & CEO' },
-                { name: 'Michael Chen', role: 'Head of Design' },
-                { name: 'Sarah Williams', role: 'Head of Operations' },
+                { name: 'Devendra', role: 'Founder & CEO' },
+                { name: 'Aman', role: 'Head of Design' },
+                { name: 'Saurav', role: 'Head of Operations' },
               ].map((member, idx) => (
                 <motion.div
                   key={idx}

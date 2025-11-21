@@ -6,6 +6,7 @@ import wishlistReducer from './slices/wishlistSlice.js';
 import themeReducer from './slices/themeSlice.js';
 import productReducer from './slices/productSlice.js';
 import categoryReducer from './slices/categorySlice.js';
+import addressReducer from './slices/addressSlice.js'; // Add this import
 
 export const store = configureStore({
   reducer: {
@@ -15,5 +16,6 @@ export const store = configureStore({
     theme: themeReducer,
     products: productReducer,
     categories: categoryReducer,
+    address: addressReducer, // Add this line
   },
 });

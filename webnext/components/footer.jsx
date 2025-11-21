@@ -7,20 +7,21 @@ export default function Footer() {
   const footerSections = [
     {
       title: 'Company',
-      links: ['About', 'Blog', 'Careers', 'Contact'],
+      links: ['About', 'Blog',  'Contact'],
     },
     {
       title: 'Shop',
-      links: ['All Products', 'New Arrivals', 'Sale', 'Collections'],
+      links: ['All Products',  'Sale', 'Collections'],
     },
     {
       title: 'Support',
-      links: ['FAQ', 'Shipping Info', 'Returns', 'Help Center'],
+      links: [ 'Shipping Info', 'Returns', 'Help Center'],
     },
-    {
+      {
       title: 'Legal',
-      links: ['Privacy Policy', 'Terms of Service', 'Cookie Policy', 'Sitemap'],
+      links: ['Privacy Policy', 'Terms of Service', 'Cookie Policy']
     },
+  
   ];
 
   return (

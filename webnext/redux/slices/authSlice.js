@@ -1,9 +1,30 @@
+// redux/slices/authSlice.js
 import { createSlice } from '@reduxjs/toolkit';
 import { login, register, logout } from '../../services/auth.js';
 
+// Helper function to safely access localStorage
+const getStoredUser = () => {
+  if (typeof window !== 'undefined') {
+    try {
+      return JSON.parse(localStorage.getItem('user')) || null;
+    } catch (error) {
+      console.error('Error parsing stored user:', error);
+      return null;
+    }
+  }
+  return null;
+};
+
+const getStoredToken = () => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('token');
+  }
+  return null;
+};
+
 const initialState = {
-  user: JSON.parse(localStorage.getItem('user')) || null,
-  isAuthenticated: !!localStorage.getItem('token'),
+  user: getStoredUser(),
+  isAuthenticated: !!getStoredToken(),
   loading: false,
   error: null,
 };
@@ -16,13 +37,22 @@ const authSlice = createSlice({
       state.user = action.payload;
       state.isAuthenticated = true;
       state.error = null;
+      
+      // Only update localStorage on client side
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('user', JSON.stringify(action.payload));
+      }
     },
-    logoutUser(state) {  // Changed from logout to logoutUser
+    logoutUser(state) {
       state.user = null;
       state.isAuthenticated = false;
       state.error = null;
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      
+      // Only remove from localStorage on client side
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
     },
     setLoading(state, action) {
       state.loading = action.payload;
@@ -44,9 +74,11 @@ export const loginUser = (email, password) => async (dispatch) => {
     
     const userData = await login(email, password);
     
-    // Store token and user data
-    localStorage.setItem('token', userData.token);
-    localStorage.setItem('user', JSON.stringify(userData));
+    // Store token and user data only on client side
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('token', userData.token);
+      localStorage.setItem('user', JSON.stringify(userData));
+    }
     
     dispatch(setUser(userData));
     dispatch(setLoading(false));
@@ -66,8 +98,11 @@ export const registerUser = (name, email, password, phone = '') => async (dispat
     
     const userData = await register(name, email, password, phone);
     
-    localStorage.setItem('token', userData.token);
-    localStorage.setItem('user', JSON.stringify(userData));
+    // Store token and user data only on client side
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('token', userData.token);
+      localStorage.setItem('user', JSON.stringify(userData));
+    }
     
     dispatch(setUser(userData));
     dispatch(setLoading(false));
@@ -80,11 +115,18 @@ export const registerUser = (name, email, password, phone = '') => async (dispat
   }
 };
 
-export const logoutUserAsync = () => async (dispatch) => {  // Changed from logoutUser to logoutUserAsync
-  await logout();
-  dispatch(logoutUser());  // Dispatch the action creator
+export const logoutUserAsync = () => async (dispatch) => {
+  try {
+    // Call logout API if needed
+    await logout();
+  } catch (error) {
+    console.error('Logout API error:', error);
+    // Continue with local logout even if API fails
+  } finally {
+    dispatch(logoutUser());
+  }
 };
 
-// Export actions - note: logoutUser is now the action creator name
+// Export actions
 export const { setUser, logoutUser, setLoading, setError, clearError } = authSlice.actions;
 export default authSlice.reducer;

@@ -39,17 +39,31 @@ export default function ProductDetail() {
     }
   }, [dispatch, productId]);
 
-  const handleAddToCart = () => {
-    if (product) {
-      dispatch(addToCart({
-        id: product.product_id,
-        name: product.product_name,
-        price: product.price,
-        image: product.images?.[0]?.image_url || "/placeholder.svg",
-        quantity: quantity
-      }));
-    }
-  };
+  // In your product-detail component, replace the handleAddToCart function:
+const handleAddToCart = async () => {
+  if (!isAuthenticated) {
+    // Use local cart for non-authenticated users
+    dispatch(addToCartLocal({
+      id: product.product_id,
+      name: product.product_name,
+      price: product.price,
+      image: product.images?.[0]?.image_url || "/placeholder.svg",
+      quantity: quantity
+    }));
+    alert('Added to cart!');
+    return;
+  }
+
+  try {
+    await dispatch(addToCartAPI({
+      product_id: product.product_id,
+      quantity: quantity
+    })).unwrap();
+    alert('Added to cart successfully!');
+  } catch (error) {
+    alert(`Failed to add to cart: ${error}`);
+  }
+};
 
   if (loading) {
     return (
@@ -108,11 +122,11 @@ export default function ProductDetail() {
       <div className="min-h-screen bg-background py-12 px-4">
         <div className="max-w-6xl mx-auto">
           {/* Debug Info - Remove in production */}
-          <div className="bg-yellow-100 p-4 rounded mb-4 text-sm">
+          {/* <div className="bg-yellow-100 p-4 rounded mb-4 text-sm">
             <strong>Debug Info:</strong> Product ID: {product.product_id}, 
             Images: {images.length}, 
             Has Data: {product ? 'Yes' : 'No'}
-          </div>
+          </div> */}
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
