@@ -82,3 +82,4 @@ export const logout = async () => {
   localStorage.removeItem('user');
   return true;
 };
+

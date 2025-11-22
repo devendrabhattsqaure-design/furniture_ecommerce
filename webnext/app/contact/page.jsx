@@ -17,7 +17,7 @@ export default function ContactPage() {
 
   return (
     <>
-      <Navbar />
+      {/* <Navbar /> */}
       <div className="min-h-screen bg-background py-12 px-4">
         <div className="max-w-4xl mx-auto">
           <motion.div

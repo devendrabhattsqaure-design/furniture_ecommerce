@@ -18,9 +18,9 @@ router.put('/profile', protect, updateProfile);
 router.put('/change-password', protect, changePassword);
 router.post('/upload-profile-image', protect, uploadProfile.single('image'), uploadProfileImage);
 
-// Admin user management routes - ADD upload middleware for update
+
 router.get('/', protect, authorize('admin'), getAllUsers);
-router.put('/:id', protect, authorize('admin'), uploadProfile.single('image'), updateUser); // Added upload middleware
+router.put('/:id', protect, authorize('admin'), uploadProfile.single('image'), updateUser);
 router.delete('/:id', protect, authorize('admin'), deleteUser);
 
 module.exports = router;

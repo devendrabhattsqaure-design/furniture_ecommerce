@@ -1,7 +1,6 @@
 // services/address.js
 const API_BASE = 'http://localhost:5000/api';
 
-// Get auth token helper
 const getAuthToken = () => {
   if (typeof window !== 'undefined') {
     return localStorage.getItem('token');
@@ -9,7 +8,6 @@ const getAuthToken = () => {
   return null;
 };
 
-// Get headers with auth token
 const getHeaders = () => {
   const token = getAuthToken();
   return {
@@ -30,7 +28,7 @@ export const getAddresses = async () => {
     }
 
     const data = await response.json();
-    return data.addresses; // Return addresses array directly
+    return data.addresses || [];
   } catch (error) {
     console.error('Get addresses error:', error);
     throw error;
@@ -51,7 +49,7 @@ export const addAddress = async (addressData) => {
     }
 
     const data = await response.json();
-    return data.address; // Return address object directly
+    return data.address;
   } catch (error) {
     console.error('Add address error:', error);
     throw error;
@@ -72,7 +70,7 @@ export const updateAddress = async (addressId, addressData) => {
     }
 
     const data = await response.json();
-    return data.address; // Return address object directly
+    return data.address;
   } catch (error) {
     console.error('Update address error:', error);
     throw error;
@@ -87,10 +85,11 @@ export const deleteAddress = async (addressId) => {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to delete address');
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to delete address');
     }
 
-    return addressId; // Return addressId for deletion
+    return addressId;
   } catch (error) {
     console.error('Delete address error:', error);
     throw error;
@@ -105,11 +104,12 @@ export const setDefaultAddress = async (addressId) => {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to set default address');
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to set default address');
     }
 
     const data = await response.json();
-    return data.address; // Return updated address
+    return data.address;
   } catch (error) {
     console.error('Set default address error:', error);
     throw error;

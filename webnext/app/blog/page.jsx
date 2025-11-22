@@ -28,7 +28,7 @@ export default function BlogPage() {
 
   return (
     <>
-      <Navbar />
+      {/* <Navbar /> */}
       <div className="min-h-screen bg-background py-12 px-4">
         <div className="max-w-6xl mx-auto">
           <motion.div

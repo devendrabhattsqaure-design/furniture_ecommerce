@@ -13,6 +13,7 @@ import TestimonialSlider from '@/components/testimonial-slider.jsx';
 import ScrollReveal from '@/components/scroll-reveal.jsx';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks.js';
 import { getProducts } from '@/redux/slices/productSlice.js';
+import Particles from '@/components/Particles.jsx';
 
 const BANNER_SLIDES = [
   {
@@ -47,9 +48,11 @@ const BANNER_SLIDES = [
 export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [mounted, setMounted] = useState(false);
+  const [pageReady, setPageReady] = useState(false);
   const { scrollYProgress } = useScroll();
   const router = useRouter();
-  
+
   const dispatch = useAppDispatch();
   const { 
     products, 
@@ -57,26 +60,7 @@ export default function Home() {
     error: productsError 
   } = useAppSelector(state => state.products);
 
-  // Fetch featured products on mount AND when returning to page
-  useEffect(() => {
-    console.log('Home page mounted/visited, fetching featured products...');
-    
-    const fetchFeaturedProducts = async () => {
-      try {
-        await dispatch(getProducts({ is_featured: true, limit: 6 }));
-        setIsInitialLoad(false);
-      } catch (error) {
-        console.error('Error fetching products:', error);
-        setIsInitialLoad(false);
-      }
-    };
-
-    fetchFeaturedProducts();
-    
-    // Reset scroll position when page loads
-    window.scrollTo(0, 0);
-  }, []); // Empty dependency array ensures this runs on every mount
-
+  // All hooks must be called unconditionally at the top level
   const smoothProgress = useSpring(scrollYProgress, {
     stiffness: 100,
     damping: 30,
@@ -87,13 +71,60 @@ export default function Home() {
   const opacity = useTransform(smoothProgress, [0, 0.3], [1, 0]);
   const scale = useTransform(smoothProgress, [0, 0.5], [1, 0.8]);
   const rotateX = useTransform(smoothProgress, [0, 0.5], [0, 25]);
+  
+  // This was the problematic hook - move it to top level
+  const parallaxY = useTransform(smoothProgress, [0.1, 0.3], [100, -100]);
 
+  // Set mounted state and trigger initial load
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % BANNER_SLIDES.length);
-    }, 6000);
-    return () => clearInterval(timer);
+    setMounted(true);
+    
+    const timer = setTimeout(() => {
+      setPageReady(true);
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, []);
+
+  // Fetch featured products on mount
+  useEffect(() => {
+    if (mounted) {
+      console.log('Home page mounted, fetching featured products...');
+      
+      const fetchFeaturedProducts = async () => {
+        try {
+          await dispatch(getProducts({ is_featured: true, limit: 6 }));
+          setIsInitialLoad(false);
+        } catch (error) {
+          console.error('Error fetching products:', error);
+          setIsInitialLoad(false);
+        }
+      };
+
+      fetchFeaturedProducts();
+    }
+  }, [mounted, dispatch]);
+
+  // Auto slide effect
+  useEffect(() => {
+    if (!mounted) return;
+    
+    const timer = setInterval(() => {
+      setCurrentSlide(prev => (prev + 1) % BANNER_SLIDES.length);
+    }, 6000);
+
+    return () => clearInterval(timer);
+  }, [mounted]);
+
+  // Reset scroll position on mount
+  useEffect(() => {
+    if (mounted) {
+      const timeout = setTimeout(() => {
+        window.scrollTo(0, 0);
+      }, 50);
+      return () => clearTimeout(timeout);
+    }
+  }, [mounted]);
 
   const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % BANNER_SLIDES.length);
   const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + BANNER_SLIDES.length) % BANNER_SLIDES.length);
@@ -101,37 +132,32 @@ export default function Home() {
   // Get featured products for display
   const featuredProducts = products?.filter(product => product.is_featured) || [];
 
+  // Show loading state until page is ready
+  if (!mounted || !pageReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-foreground/60">Loading Luxury Furniture...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
-      <Navbar />
+      {/* <Navbar /> */}
       
       {/* Banner Slider */}
       <section className="relative h-[90vh] overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800">
         {/* Animated Background Particles */}
-        <motion.div
-          style={{ y, opacity }}
+        <motion.div 
+          style={{ y, opacity }} 
           className="absolute inset-0 z-0"
+          initial={false}
+          animate={{ opacity: 1 }}
         >
-          {[...Array(20)].map((_, i) => (
-            <motion.div
-              key={i}
-              animate={{
-                y: [0, -30, 0],
-                x: [0, Math.random() * 20 - 10, 0],
-                opacity: [0.2, 0.5, 0.2]
-              }}
-              transition={{
-                duration: 3 + Math.random() * 2,
-                repeat: Infinity,
-                delay: Math.random() * 2
-              }}
-              className="absolute w-1 h-1 bg-white rounded-full"
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`
-              }}
-            />
-          ))}
+          <Particles />
         </motion.div>
 
         {/* Slides */}
@@ -241,7 +267,7 @@ export default function Home() {
             <button
               key={index}
               onClick={() => setCurrentSlide(index)}
-              className="relative h-2 rounded-full overflow-hidden"
+              className="relative h-2 rounded-full overflow-hidden transition-all duration-300"
               style={{ width: currentSlide === index ? '48px' : '32px' }}
             >
               <div className="absolute inset-0 bg-white/30" />
@@ -259,8 +285,9 @@ export default function Home() {
 
       {/* 3D Parallax Features Section */}
       <section className="py-24 px-4 bg-background relative overflow-hidden">
+        {/* Fixed: Use the pre-defined parallaxY hook instead of calling useTransform in JSX */}
         <motion.div
-          style={{ y: useTransform(smoothProgress, [0.1, 0.3], [100, -100]) }}
+          style={{ y: parallaxY }}
           className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl"
         />
         
@@ -340,7 +367,7 @@ export default function Home() {
           </motion.div>
 
           {/* Products Grid */}
-          {productsLoading ? (
+          {productsLoading && isInitialLoad ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {[1, 2, 3, 4, 5, 6].map(i => (
                 <div key={i} className="bg-accent rounded-lg p-4 animate-pulse">
@@ -359,9 +386,9 @@ export default function Home() {
                 <motion.div
                   key={product.product_id}
                   layout
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5 }}
                 >
                   <ProductCard 
                     id={product.product_id}

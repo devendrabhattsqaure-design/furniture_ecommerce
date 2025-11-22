@@ -21,7 +21,7 @@ export default function AboutPage() {
 
   return (
     <>
-      <Navbar />
+      {/* <Navbar /> */}
       <div className="min-h-screen bg-background">
         {/* Hero */}
         <section className="py-20 px-4 bg-gradient-to-br from-primary/10 to-accent">
