@@ -14,6 +14,15 @@ import ScrollReveal from '@/components/scroll-reveal.jsx';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks.js';
 import { getProducts } from '@/redux/slices/productSlice.js';
 import Particles from '@/components/Particles.jsx';
+import { 
+  fetchUserProfile, 
+
+} from '@/redux/slices/userSlice';
+import { 
+  fetchAddresses, 
+
+} from '@/redux/slices/addressSlice';
+
 
 const BANNER_SLIDES = [
   {
@@ -52,6 +61,7 @@ export default function Home() {
   const [pageReady, setPageReady] = useState(false);
   const { scrollYProgress } = useScroll();
   const router = useRouter();
+  const { user, isAuthenticated, loading: userLoading, error: userError } = useAppSelector(state => state.user);
 
   const dispatch = useAppDispatch();
   const { 
@@ -85,6 +95,29 @@ export default function Home() {
 
     return () => clearTimeout(timer);
   }, []);
+    useEffect(() => {
+      if (mounted) {
+      console.log('Home page mounted, fetching featured products...');
+      if (!isAuthenticated) {
+        router.push('/login');
+        return;
+      }
+      
+      const loadData = async () => {
+        try {
+          await dispatch(fetchUserProfile()).unwrap();
+          await dispatch(fetchAddresses()).unwrap();
+        } catch (error) {
+          console.error('Failed to load data:', error);
+          if (error.message.includes('401') || error.message.includes('token')) {
+            localStorage.removeItem('token');
+            router.push('/login');
+          }
+        }
+      };
+      
+      loadData();}
+    }, [isAuthenticated, router, dispatch,mounted]);
 
   // Fetch featured products on mount
   useEffect(() => {

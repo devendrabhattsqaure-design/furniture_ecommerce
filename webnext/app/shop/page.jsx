@@ -157,7 +157,7 @@ export default function ShopPage() {
 
   return (
     <>
-      <Navbar />
+      {/* <Navbar /> */}
       <div className="min-h-screen bg-background">
         {/* Hero */}
         <section className="bg-accent py-12 px-4">

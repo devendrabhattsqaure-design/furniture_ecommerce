@@ -14,7 +14,7 @@ const generateOrderNumber = () => {
 exports.createOrder = asyncHandler(async (req, res) => {
   const { payment_method, shipping_address_id, billing_address_id, customer_notes } = req.body;
 
-  // Get cart
+  // Get user's cart
   const [carts] = await db.query('SELECT * FROM cart WHERE user_id = ?', [req.user.id]);
   if (carts.length === 0) {
     return res.status(400).json({ success: false, message: 'Cart is empty' });
@@ -22,9 +22,9 @@ exports.createOrder = asyncHandler(async (req, res) => {
 
   const cartId = carts[0].cart_id;
 
-  // Get cart items
+  // Get cart items with product details
   const [cartItems] = await db.query(
-    `SELECT ci.*, p.product_name, p.sku, p.stock_quantity
+    `SELECT ci.*, p.product_name, p.sku, p.stock_quantity, p.price as product_price
      FROM cart_items ci
      JOIN products p ON ci.product_id = p.product_id
      WHERE ci.cart_id = ?`,
@@ -36,7 +36,7 @@ exports.createOrder = asyncHandler(async (req, res) => {
   }
 
   // Calculate totals
-  const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const subtotal = cartItems.reduce((sum, item) => sum + (item.product_price * item.quantity), 0);
   const tax_amount = subtotal * 0.18;
   const shipping_amount = subtotal >= 5000 ? 0 : 100;
   const total_amount = subtotal + tax_amount + shipping_amount;
@@ -67,13 +67,16 @@ exports.createOrder = asyncHandler(async (req, res) => {
         throw new Error(`Insufficient stock for ${item.product_name}`);
       }
 
+      const itemTotal = item.product_price * item.quantity;
+      const itemTax = itemTotal * 0.18;
+
       // Add order item
       await db.query(
         `INSERT INTO order_items (order_id, product_id, product_name, sku, quantity, 
          unit_price, discount_amount, tax_amount, total_price)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [orderId, item.product_id, item.product_name, item.sku, item.quantity,
-         item.price, 0, item.price * item.quantity * 0.18, item.price * item.quantity]
+         item.product_price, 0, itemTax, itemTotal]
       );
 
       // Update product stock
@@ -89,13 +92,27 @@ exports.createOrder = asyncHandler(async (req, res) => {
     // Commit transaction
     await db.query('COMMIT');
 
-    // Get created order
-    const [orders] = await db.query('SELECT * FROM orders WHERE order_id = ?', [orderId]);
+    // Get created order with address details
+    const [orders] = await db.query(
+      `SELECT o.*, ua.address_line1, ua.city, ua.postal_code, ua.phone
+       FROM orders o
+       LEFT JOIN user_addresses ua ON o.shipping_address_id = ua.address_id
+       WHERE o.order_id = ?`,
+      [orderId]
+    );
 
-    res.status(201).json({ success: true, message: 'Order created successfully', data: orders[0] });
+    res.status(201).json({ 
+      success: true, 
+      message: 'Order created successfully', 
+      data: orders[0] 
+    });
   } catch (error) {
     await db.query('ROLLBACK');
-    throw error;
+    console.error('Order creation error:', error);
+    res.status(400).json({ 
+      success: false, 
+      message: error.message || 'Failed to create order' 
+    });
   }
 });
 
@@ -105,15 +122,20 @@ exports.getMyOrders = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, status } = req.query;
   const offset = (page - 1) * limit;
 
-  let query = 'SELECT * FROM orders WHERE user_id = ?';
+  let query = `
+    SELECT o.*, ua.address_line1, ua.city, ua.postal_code 
+    FROM orders o 
+    LEFT JOIN user_addresses ua ON o.shipping_address_id = ua.address_id 
+    WHERE o.user_id = ?
+  `;
   const params = [req.user.id];
 
   if (status) {
-    query += ' AND order_status = ?';
+    query += ' AND o.order_status = ?';
     params.push(status);
   }
 
-  query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+  query += ' ORDER BY o.created_at DESC LIMIT ? OFFSET ?';
   params.push(parseInt(limit), parseInt(offset));
 
   const [orders] = await db.query(query, params);
@@ -137,12 +159,19 @@ exports.getMyOrders = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get single order
+// @desc    Get single order with items
 // @route   GET /api/orders/:orderId
 exports.getOrder = asyncHandler(async (req, res) => {
   const { orderId } = req.params;
 
-  const [orders] = await db.query('SELECT * FROM orders WHERE order_id = ?', [orderId]);
+  const [orders] = await db.query(
+    `SELECT o.*, ua.* 
+     FROM orders o 
+     LEFT JOIN user_addresses ua ON o.shipping_address_id = ua.address_id 
+     WHERE o.order_id = ?`,
+    [orderId]
+  );
+
   if (orders.length === 0) {
     return res.status(404).json({ success: false, message: 'Order not found' });
   }
@@ -155,9 +184,27 @@ exports.getOrder = asyncHandler(async (req, res) => {
   }
 
   // Get order items
-  const [items] = await db.query('SELECT * FROM order_items WHERE order_id = ?', [orderId]);
+  const [items] = await db.query(
+    `SELECT oi.*, p.image_url 
+     FROM order_items oi 
+     LEFT JOIN products p ON oi.product_id = p.product_id 
+     WHERE oi.order_id = ?`,
+    [orderId]
+  );
 
-  res.json({ success: true, data: { ...order, items } });
+  res.json({ 
+    success: true, 
+    data: { 
+      ...order, 
+      items,
+      address: {
+        address_line1: order.address_line1,
+        city: order.city,
+        postal_code: order.postal_code,
+        phone: order.phone
+      }
+    } 
+  });
 });
 
 // @desc    Cancel order
@@ -187,11 +234,14 @@ exports.cancelOrder = asyncHandler(async (req, res) => {
     ['cancelled', orderId]
   );
 
-  // Add tracking entry
-  await db.query(
-    'INSERT INTO order_tracking (order_id, status, notes) VALUES (?, ?, ?)',
-    [orderId, 'cancelled', 'Cancelled by customer']
-  );
+  // Restock items
+  const [items] = await db.query('SELECT * FROM order_items WHERE order_id = ?', [orderId]);
+  for (const item of items) {
+    await db.query(
+      'UPDATE products SET stock_quantity = stock_quantity + ? WHERE product_id = ?',
+      [item.quantity, item.product_id]
+    );
+  }
 
   res.json({ success: true, message: 'Order cancelled successfully' });
 });

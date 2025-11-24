@@ -1,22 +1,37 @@
 // redux/slices/cartSlice.js
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
-// API calls
+const API_BASE = 'http://localhost:5000/api';
+
+const getAuthToken = () => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('token');
+  }
+  return null;
+};
+
+const getHeaders = () => {
+  const token = getAuthToken();
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` }),
+  };
+};
+
+// Async thunks
 export const fetchCart = createAsyncThunk(
   'cart/fetchCart',
   async (_, { rejectWithValue }) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/cart', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+      const response = await fetch(`${API_BASE}/cart`, {
+        method: 'GET',
+        headers: getHeaders(),
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch cart');
       }
-      
+
       const data = await response.json();
       return data.data;
     } catch (error) {
@@ -27,24 +42,20 @@ export const fetchCart = createAsyncThunk(
 
 export const addToCartAPI = createAsyncThunk(
   'cart/addToCartAPI',
-  async ({ product_id, quantity }, { rejectWithValue }) => {
+  async ({ product_id, quantity = 1 }, { rejectWithValue }) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/cart/add', {
+      const response = await fetch(`${API_BASE}/cart/add`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: getHeaders(),
         body: JSON.stringify({ product_id, quantity }),
       });
-      
-      const data = await response.json();
-      
+
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to add to cart');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to add to cart');
       }
-      
+
+      const data = await response.json();
       return data.data;
     } catch (error) {
       return rejectWithValue(error.message);
@@ -56,61 +67,63 @@ export const updateCartItemAPI = createAsyncThunk(
   'cart/updateCartItemAPI',
   async ({ itemId, quantity }, { rejectWithValue }) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/cart/item/${itemId}`, {
+      const response = await fetch(`${API_BASE}/cart/item/${itemId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: getHeaders(),
         body: JSON.stringify({ quantity }),
       });
-      
-      const data = await response.json();
-      
+
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to update cart');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update cart item');
       }
-      
+
+      const data = await response.json();
       return { itemId, quantity, ...data.data };
     } catch (error) {
       return rejectWithValue(error.message);
     }
   }
 );
-const normalizeCartItem = (item) => {
-  // Handle both API response structure and local structure
-  return {
-    id: item.product_id || item.id,
-    product_id: item.product_id || item.id,
-    cart_item_id: item.cart_item_id,
-    name: item.product_name || item.name,
-    price: item.price,
-    quantity: item.quantity,
-    image: item.image_url || item.image,
-    stock_quantity: item.stock_quantity
-  };
-};
 
 export const removeFromCartAPI = createAsyncThunk(
   'cart/removeFromCartAPI',
   async (itemId, { rejectWithValue }) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/cart/item/${itemId}`, {
+      const response = await fetch(`${API_BASE}/cart/item/${itemId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: getHeaders(),
       });
-      
-      const data = await response.json();
-      
+
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to remove from cart');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to remove from cart');
       }
-      
+
+      const data = await response.json();
       return { itemId, ...data.data };
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const clearCartAPI = createAsyncThunk(
+  'cart/clearCartAPI',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE}/cart/clear`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to clear cart');
+      }
+
+      const data = await response.json();
+      return data.data;
     } catch (error) {
       return rejectWithValue(error.message);
     }
@@ -121,9 +134,8 @@ export const removeFromCartAPI = createAsyncThunk(
 const getStoredCart = () => {
   if (typeof window !== 'undefined') {
     try {
-      return JSON.parse(localStorage.getItem('cart')) || { items: [], totalPrice: 0, totalQuantity: 0 };
+      return JSON.parse(localStorage.getItem('localCart')) || { items: [], totalPrice: 0, totalQuantity: 0 };
     } catch (error) {
-      console.error('Error parsing stored cart:', error);
       return { items: [], totalPrice: 0, totalQuantity: 0 };
     }
   }
@@ -132,111 +144,204 @@ const getStoredCart = () => {
 
 const saveCartToStorage = (cart) => {
   if (typeof window !== 'undefined') {
-    localStorage.setItem('cart', JSON.stringify(cart));
+    localStorage.setItem('localCart', JSON.stringify(cart));
   }
 };
 
 const initialState = {
-  items: getStoredCart().items,
-  totalPrice: getStoredCart().totalPrice,
-  totalQuantity: getStoredCart().totalQuantity,
+  items: [],
+  totalPrice: 0,
+  totalQuantity: 0,
   loading: false,
   error: null,
+  isAuthenticated: false,
 };
 
 const cartSlice = createSlice({
   name: 'cart',
   initialState,
   reducers: {
-    addToCart(state, action) {
+    // Local cart actions (for non-authenticated users)
+    addToCart: (state, action) => {
       const { id, name, price, image, quantity = 1 } = action.payload;
       const existingItem = state.items.find(item => item.id === id);
 
       if (existingItem) {
         existingItem.quantity += quantity;
       } else {
-        state.items.push({ id, name, price, image, quantity });
+        state.items.push({ 
+          id, 
+          name, 
+          price, 
+          image, 
+          quantity,
+          cart_item_id: `local_${id}` // Create a local ID
+        });
       }
 
       state.totalQuantity = state.items.reduce((sum, item) => sum + item.quantity, 0);
-      state.totalPrice = state.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      state.totalPrice = state.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       
-      // Save to localStorage after update
-      saveCartToStorage({
-        items: state.items,
-        totalPrice: state.totalPrice,
-        totalQuantity: state.totalQuantity
-      });
+      // Save to localStorage for non-authenticated users
+      if (!state.isAuthenticated) {
+        saveCartToStorage({
+          items: state.items,
+          totalPrice: state.totalPrice,
+          totalQuantity: state.totalQuantity
+        });
+      }
     },
-    removeFromCart(state, action) {
+    
+    removeFromCart: (state, action) => {
       state.items = state.items.filter(item => item.id !== action.payload);
       state.totalQuantity = state.items.reduce((sum, item) => sum + item.quantity, 0);
-      state.totalPrice = state.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      state.totalPrice = state.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       
-      // Save to localStorage after update
-      saveCartToStorage({
-        items: state.items,
-        totalPrice: state.totalPrice,
-        totalQuantity: state.totalQuantity
-      });
+      if (!state.isAuthenticated) {
+        saveCartToStorage({
+          items: state.items,
+          totalPrice: state.totalPrice,
+          totalQuantity: state.totalQuantity
+        });
+      }
     },
-    updateQuantity(state, action) {
+    
+    updateQuantity: (state, action) => {
       const { id, quantity } = action.payload;
       const item = state.items.find(item => item.id === id);
       if (item && quantity > 0) {
         item.quantity = quantity;
       }
       state.totalQuantity = state.items.reduce((sum, item) => sum + item.quantity, 0);
-      state.totalPrice = state.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      state.totalPrice = state.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       
-      // Save to localStorage after update
-      saveCartToStorage({
-        items: state.items,
-        totalPrice: state.totalPrice,
-        totalQuantity: state.totalQuantity
-      });
+      if (!state.isAuthenticated) {
+        saveCartToStorage({
+          items: state.items,
+          totalPrice: state.totalPrice,
+          totalQuantity: state.totalQuantity
+        });
+      }
     },
-    clearCart(state) {
+    
+    clearCart: (state) => {
       state.items = [];
       state.totalQuantity = 0;
       state.totalPrice = 0;
       
-      // Clear localStorage
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('cart');
+      if (!state.isAuthenticated) {
+        localStorage.removeItem('localCart');
       }
     },
-    loadCartFromStorage(state) {
-      const storedCart = getStoredCart();
-      state.items = storedCart.items;
-      state.totalPrice = storedCart.totalPrice;
-      state.totalQuantity = storedCart.totalQuantity;
+    
+    setAuthentication: (state, action) => {
+      state.isAuthenticated = action.payload;
+      if (!action.payload) {
+        // When logging out, load local cart
+        const localCart = getStoredCart();
+        state.items = localCart.items;
+        state.totalPrice = localCart.totalPrice;
+        state.totalQuantity = localCart.totalQuantity;
+      }
     },
-    setLoading(state, action) {
-      state.loading = action.payload;
+    
+    loadLocalCart: (state) => {
+      if (!state.isAuthenticated) {
+        const localCart = getStoredCart();
+        state.items = localCart.items;
+        state.totalPrice = localCart.totalPrice;
+        state.totalQuantity = localCart.totalQuantity;
+      }
     },
-    setError(state, action) {
-      state.error = action.payload;
-    },
-    clearError(state) {
+    
+    clearError: (state) => {
       state.error = null;
     },
   },
+  extraReducers: (builder) => {
+    builder
+      // Fetch Cart
+      .addCase(fetchCart.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchCart.fulfilled, (state, action) => {
+        state.loading = false;
+        state.items = action.payload.items || [];
+        state.totalPrice = action.payload.total || 0;
+        state.totalQuantity = action.payload.totalItems || 0;
+      })
+      .addCase(fetchCart.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Add to Cart API
+      .addCase(addToCartAPI.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(addToCartAPI.fulfilled, (state, action) => {
+        state.loading = false;
+        state.items = action.payload.items || [];
+        state.totalPrice = action.payload.total || 0;
+        state.totalQuantity = action.payload.totalItems || 0;
+      })
+      .addCase(addToCartAPI.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Update Cart Item API
+      .addCase(updateCartItemAPI.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateCartItemAPI.fulfilled, (state, action) => {
+        state.loading = false;
+        state.totalPrice = action.payload.total || 0;
+        state.totalQuantity = action.payload.totalItems || 0;
+        // Update the specific item quantity
+        const item = state.items.find(item => item.cart_item_id === action.payload.itemId);
+        if (item) {
+          item.quantity = action.payload.quantity;
+        }
+      })
+      .addCase(updateCartItemAPI.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Remove from Cart API
+      .addCase(removeFromCartAPI.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(removeFromCartAPI.fulfilled, (state, action) => {
+        state.loading = false;
+        state.totalPrice = action.payload.total || 0;
+        state.totalQuantity = action.payload.totalItems || 0;
+        // Remove item from local state
+        state.items = state.items.filter(item => item.cart_item_id !== action.payload.itemId);
+      })
+      .addCase(removeFromCartAPI.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Clear Cart API
+      .addCase(clearCartAPI.fulfilled, (state) => {
+        state.items = [];
+        state.totalPrice = 0;
+        state.totalQuantity = 0;
+      });
+  },
 });
+
 export const { 
   addToCart,
-  addToCartLocal,
   removeFromCart, 
-  removeFromCartLocal,
   updateQuantity,
-  updateQuantityLocal, 
   clearCart,
-  clearCartLocal,
-  setCartFromAPI,
-  clearError ,
-  
-  loadCartFromStorage,
+  setAuthentication,
+  loadLocalCart,
+  clearError
 } = cartSlice.actions;
-
 
 export default cartSlice.reducer;

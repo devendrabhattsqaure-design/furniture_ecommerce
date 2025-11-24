@@ -5,17 +5,18 @@ import { useState, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks';
 import { 
   fetchCart, 
-  addToCartAPI, 
   updateCartItemAPI, 
   removeFromCartAPI,
+  updateQuantity,
+  removeFromCart,
   clearError 
 } from '@/redux/slices/cartSlice';
 import { motion, AnimatePresence } from 'framer-motion';
+import Link from 'next/link';
 
 export default function Cart({ isOpen, onClose }) {
   const dispatch = useAppDispatch();
-  const { items, totalPrice, totalQuantity, loading, error } = useAppSelector(state => state.cart);
-  const { isAuthenticated } = useAppSelector(state => state.auth);
+  const { items, totalPrice, totalQuantity, loading, error, isAuthenticated } = useAppSelector(state => state.cart);
   const [updatingItems, setUpdatingItems] = useState(new Set());
 
   useEffect(() => {
@@ -33,41 +34,57 @@ export default function Cart({ isOpen, onClose }) {
     }
   }, [error, dispatch]);
 
-  const handleUpdateQuantity = async (itemId, newQuantity) => {
+  const handleUpdateQuantity = async (itemId, productId, newQuantity) => {
     if (newQuantity < 1) return;
     
-    setUpdatingItems(prev => new Set(prev).add(itemId));
-    try {
-      await dispatch(updateCartItemAPI({ itemId, quantity: newQuantity })).unwrap();
-    } catch (error) {
-      console.error('Failed to update quantity:', error);
-    } finally {
-      setUpdatingItems(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(itemId);
-        return newSet;
-      });
+    if (isAuthenticated) {
+      // Use API for authenticated users
+      setUpdatingItems(prev => new Set(prev).add(itemId));
+      try {
+        await dispatch(updateCartItemAPI({ itemId, quantity: newQuantity })).unwrap();
+      } catch (error) {
+        console.error('Failed to update quantity:', error);
+      } finally {
+        setUpdatingItems(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(itemId);
+          return newSet;
+        });
+      }
+    } else {
+      // Use local action for non-authenticated users
+      dispatch(updateQuantity({ id: productId, quantity: newQuantity }));
     }
   };
 
-  const handleRemoveItem = async (itemId) => {
-    setUpdatingItems(prev => new Set(prev).add(itemId));
-    try {
-      await dispatch(removeFromCartAPI(itemId)).unwrap();
-    } catch (error) {
-      console.error('Failed to remove item:', error);
-    } finally {
-      setUpdatingItems(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(itemId);
-        return newSet;
-      });
+  const handleRemoveItem = async (itemId, productId) => {
+    if (isAuthenticated) {
+      // Use API for authenticated users
+      setUpdatingItems(prev => new Set(prev).add(itemId));
+      try {
+        await dispatch(removeFromCartAPI(itemId)).unwrap();
+      } catch (error) {
+        console.error('Failed to remove item:', error);
+      } finally {
+        setUpdatingItems(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(itemId);
+          return newSet;
+        });
+      }
+    } else {
+      // Use local action for non-authenticated users
+      dispatch(removeFromCart(productId));
     }
   };
 
   const handleCheckout = () => {
-    // Implement checkout logic
-    alert('Proceeding to checkout...');
+    if (!isAuthenticated) {
+      alert('Please login to checkout');
+      return;
+    }
+    onClose();
+    window.location.href = '/checkout';
   };
 
   if (!isOpen) return null;
@@ -129,7 +146,7 @@ export default function Cart({ isOpen, onClose }) {
             <AnimatePresence>
               {items.map((item) => (
                 <motion.div
-                  key={item.cart_item_id}
+                  key={item.cart_item_id || item.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: 100 }}
@@ -137,24 +154,28 @@ export default function Cart({ isOpen, onClose }) {
                 >
                   {/* Product Image */}
                   <img
-                    src={item.image_url || '/placeholder.svg'}
-                    alt={item.product_name}
+                    src={item.image_url || item.image || '/placeholder.svg'}
+                    alt={item.product_name || item.name}
                     className="w-16 h-16 object-cover rounded"
                   />
 
                   {/* Product Details */}
                   <div className="flex-1">
                     <h3 className="font-medium text-sm line-clamp-2">
-                      {item.product_name}
+                      {item.product_name || item.name}
                     </h3>
                     <p className="text-green-600 font-semibold">
-                      ${item.price}
+                      ₹{item.price}
                     </p>
 
                     {/* Quantity Controls */}
                     <div className="flex items-center gap-2 mt-2">
                       <button
-                        onClick={() => handleUpdateQuantity(item.cart_item_id, item.quantity - 1)}
+                        onClick={() => handleUpdateQuantity(
+                          item.cart_item_id, 
+                          item.product_id || item.id, 
+                          item.quantity - 1
+                        )}
                         disabled={updatingItems.has(item.cart_item_id) || item.quantity <= 1}
                         className="w-6 h-6 flex items-center justify-center border rounded disabled:opacity-50"
                       >
@@ -166,7 +187,11 @@ export default function Cart({ isOpen, onClose }) {
                       </span>
                       
                       <button
-                        onClick={() => handleUpdateQuantity(item.cart_item_id, item.quantity + 1)}
+                        onClick={() => handleUpdateQuantity(
+                          item.cart_item_id, 
+                          item.product_id || item.id, 
+                          item.quantity + 1
+                        )}
                         disabled={updatingItems.has(item.cart_item_id)}
                         className="w-6 h-6 flex items-center justify-center border rounded disabled:opacity-50"
                       >
@@ -175,7 +200,10 @@ export default function Cart({ isOpen, onClose }) {
 
                       {/* Remove Button */}
                       <button
-                        onClick={() => handleRemoveItem(item.cart_item_id)}
+                        onClick={() => handleRemoveItem(
+                          item.cart_item_id, 
+                          item.product_id || item.id
+                        )}
                         disabled={updatingItems.has(item.cart_item_id)}
                         className="ml-auto text-red-500 hover:text-red-700 disabled:opacity-50"
                       >
@@ -195,7 +223,7 @@ export default function Cart({ isOpen, onClose }) {
             {/* Total */}
             <div className="flex justify-between text-lg font-semibold">
               <span>Total:</span>
-              <span>${totalPrice.toFixed(2)}</span>
+              <span>₹{totalPrice.toFixed(2)}</span>
             </div>
 
             {/* Checkout Button */}
@@ -204,8 +232,18 @@ export default function Cart({ isOpen, onClose }) {
               disabled={loading}
               className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
             >
-              {loading ? 'Processing...' : 'Proceed to Checkout'}
+              {isAuthenticated ? 'Proceed to Checkout' : 'Login to Checkout'}
             </button>
+
+            {!isAuthenticated && (
+              <Link
+                href="/login"
+                className="block w-full text-center py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50"
+                onClick={onClose}
+              >
+                Sign In to Checkout
+              </Link>
+            )}
 
             {/* Continue Shopping */}
             <button
