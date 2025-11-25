@@ -259,37 +259,46 @@ const cartSlice = createSlice({
     },
   },
   extraReducers: (builder) => {
-    builder
-      // Fetch Cart
-      .addCase(fetchCart.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(fetchCart.fulfilled, (state, action) => {
-        state.loading = false;
-        state.items = action.payload.items || [];
-        state.totalPrice = action.payload.total || 0;
-        state.totalQuantity = action.payload.totalItems || 0;
-      })
-      .addCase(fetchCart.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      })
-      // Add to Cart API
-      .addCase(addToCartAPI.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(addToCartAPI.fulfilled, (state, action) => {
-        state.loading = false;
-        state.items = action.payload.items || [];
-        state.totalPrice = action.payload.total || 0;
-        state.totalQuantity = action.payload.totalItems || 0;
-      })
-      .addCase(addToCartAPI.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      })
+  builder
+    // Fetch Cart
+    .addCase(fetchCart.pending, (state) => {
+      state.loading = true;
+      state.error = null;
+    })
+    .addCase(fetchCart.fulfilled, (state, action) => {
+      state.loading = false;
+      // Make sure we're properly setting items from API response
+      state.items = action.payload.items || action.payload.data?.items || [];
+      state.totalPrice = action.payload.total || action.payload.data?.total || 0;
+      state.totalQuantity = action.payload.totalItems || action.payload.data?.totalItems || 0;
+    })
+    .addCase(fetchCart.rejected, (state, action) => {
+      state.loading = false;
+      state.error = action.payload;
+      // If API fails, fall back to local cart for authenticated users
+      if (state.isAuthenticated) {
+        const localCart = getStoredCart();
+        state.items = localCart.items;
+        state.totalPrice = localCart.totalPrice;
+        state.totalQuantity = localCart.totalQuantity;
+      }
+    })
+    // Add to Cart API
+    .addCase(addToCartAPI.pending, (state) => {
+      state.loading = true;
+      state.error = null;
+    })
+    .addCase(addToCartAPI.fulfilled, (state, action) => {
+      state.loading = false;
+      // Update state with API response data
+      state.items = action.payload.items || action.payload.data?.items || [];
+      state.totalPrice = action.payload.total || action.payload.data?.total || 0;
+      state.totalQuantity = action.payload.totalItems || action.payload.data?.totalItems || 0;
+    })
+    .addCase(addToCartAPI.rejected, (state, action) => {
+      state.loading = false;
+      state.error = action.payload;
+    })
       // Update Cart Item API
       .addCase(updateCartItemAPI.pending, (state) => {
         state.loading = true;

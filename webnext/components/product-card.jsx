@@ -1,10 +1,10 @@
-// components/product-card.jsx
+// components/product-card.jsx - Updated version
 'use client';
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { useAppDispatch } from '@/redux/hooks.js';
-import { addToCart } from '@/redux/slices/cartSlice.js';
+import { useAppDispatch, useAppSelector } from '@/redux/hooks.js';
+import { addToCart, addToCartAPI } from '@/redux/slices/cartSlice.js';
 
 export default function ProductCard({ 
   id, 
@@ -17,18 +17,29 @@ export default function ProductCard({
   is_on_sale = false 
 }) {
   const dispatch = useAppDispatch();
+  const { isAuthenticated } = useAppSelector(state => state.auth);
 
-  const handleAddToCart = (e) => {
+  const handleAddToCart = async (e) => {
     e.preventDefault();
     e.stopPropagation();
     
-    dispatch(addToCart({
-      id,
-      name,
-      price,
-      image,
-      quantity: 1
-    }));
+    try {
+      if (isAuthenticated) {
+        // Use API for authenticated users
+        await dispatch(addToCartAPI({ product_id: id, quantity: 1 })).unwrap();
+      } else {
+        // Use local storage for non-authenticated users
+        dispatch(addToCart({
+          id,
+          name,
+          price,
+          image,
+          quantity: 1
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to add to cart:', error);
+    }
   };
 
   return (

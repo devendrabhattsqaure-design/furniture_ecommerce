@@ -187,7 +187,7 @@ exports.getOrder = asyncHandler(async (req, res) => {
   const [items] = await db.query(
     `SELECT oi.*, p.image_url 
      FROM order_items oi 
-     LEFT JOIN products p ON oi.product_id = p.product_id 
+     LEFT JOIN product_images p ON oi.product_id = p.product_id 
      WHERE oi.order_id = ?`,
     [orderId]
   );

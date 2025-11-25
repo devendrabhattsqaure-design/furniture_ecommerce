@@ -8,6 +8,7 @@ import productReducer from './slices/productSlice.js';
 import categoryReducer from './slices/categorySlice.js';
 import addressReducer from './slices/addressSlice.js'; // Add this import
 import userReducer from './slices/userSlice';
+import orerReducer from './slices/orderSlice.js';
 
 export const store = configureStore({
   reducer: {
@@ -19,5 +20,6 @@ export const store = configureStore({
     categories: categoryReducer,
     address: addressReducer, // Add this line
     user: userReducer, // Add this line
+    order: orerReducer, // Add this line
   },
 });
