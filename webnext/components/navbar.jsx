@@ -6,23 +6,25 @@ import Link from 'next/link';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks.js';
 import { logoutUserAsync } from '@/redux/slices/authSlice.js';
 
-// Lucide Icons
 import { ShoppingCart, Menu, X, User, LogOut, UserCircle, Package } from 'lucide-react';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
+
   const dispatch = useAppDispatch();
-  
-  // const { totalQuantity } = useAppSelector(state => state.cart);
-  const { isAuthenticated, user } = useAppSelector(state => state.auth);
-  const { totalQuantity, items } = useAppSelector(state => state.cart);
+
+const { isAuthenticated } = useAppSelector((state) => state.auth);
+const { user } = useAppSelector((state) => state.user);
+  const { totalQuantity, items } = useAppSelector((state) => state.cart);
 
   const profileDropdownRef = useRef(null);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
+    setHasMounted(true);
+
     const handleClickOutside = (event) => {
       if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target)) {
         setIsProfileDropdownOpen(false);
@@ -30,27 +32,13 @@ export default function Navbar() {
     };
 
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const handleLogout = () => {
     dispatch(logoutUserAsync());
     setShowLogoutConfirm(false);
     setIsProfileDropdownOpen(false);
-  };
-
-  const handleLogoutClick = () => {
-    setShowLogoutConfirm(true);
-  };
-
-  const confirmLogout = () => {
-    handleLogout();
-  };
-
-  const cancelLogout = () => {
-    setShowLogoutConfirm(false);
   };
 
   const navItems = [
@@ -76,64 +64,60 @@ export default function Navbar() {
               <Link
                 key={item.href}
                 href={item.href}
-                className="
-                  text-gray-700 hover:text-blue-600 font-medium
-                  transition relative group
-                "
+                className="text-gray-700 hover:text-blue-600 font-medium transition relative group"
               >
                 {item.label}
-                <span className="
-                  absolute left-0 -bottom-1 w-0 h-[2px] bg-blue-600 
-                  group-hover:w-full transition-all duration-300
-                "></span>
+                <span className="absolute left-0 -bottom-1 w-0 h-[2px] bg-blue-600 group-hover:w-full transition-all duration-300"></span>
               </Link>
             ))}
           </div>
 
-          {/* Right Section Actions */}
+          {/* Right Section */}
           <div className="flex gap-4 items-center">
-            
-            {/* Cart */}
-         <Link 
-  href="/checkout" 
-  className="relative p-2 rounded-lg hover:bg-gray-100 transition"
-  title="View Cart"
->
-  <ShoppingCart size={22} className="text-gray-700" />
-  {items.length > 0 && (
-    <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-      {totalQuantity > 99 ? '99+' : totalQuantity}
-    </span>
-  )}
-</Link>
 
-            {/* Auth Section */}
-            {isAuthenticated ? (
-              <div className="flex items-center gap-3" ref={profileDropdownRef}>
-                {/* Profile Dropdown Trigger */}
-                <button 
-                  onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 transition group relative"
+            {/* Cart */}
+            <Link
+              href="/checkout"
+              className="relative p-2 rounded-lg hover:bg-gray-100 transition"
+              title="View Cart"
+            >
+              <ShoppingCart size={22} className="text-gray-700" />
+              {items.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {totalQuantity > 99 ? '99+' : totalQuantity}
+                </span>
+              )}
+            </Link>
+
+            {/* AUTH SECTION FIXED (NO HYDRATION ERROR) */}
+            {!hasMounted ? (
+              // SSR & First Client Render → SAME HTML
+              <div className="w-8 h-8 bg-gray-200 rounded-full animate-pulse" />
+            ) : isAuthenticated ? (
+              <div className="flex items-center gap-3 relative" ref={profileDropdownRef}>
+                <button
+                  onClick={() => setIsProfileDropdownOpen((prev) => !prev)}
+                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 transition"
                 >
-                  <div className="flex items-center gap-2">
-                    {user?.profile_image ? (
-                      <img 
-                        src={user.profile_image} 
-                        alt="Profile" 
-                        className="w-8 h-8 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                        <User size={16} className="text-blue-600" />
-                      </div>
-                    )}
-                    <span className="hidden sm:block text-sm text-gray-600 max-w-24 truncate">
-                      {user?.full_name || user?.name || 'User'}
-                    </span>
-                  </div>
+                 <div className="flex items-center gap-2">
+  {user?.profile_image ? (
+    <img
+      src={user.profile_image}
+      alt="Profile"
+      className="w-8 h-8 rounded-full object-cover"
+    />
+  ) : (
+    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+      <User size={16} className="text-blue-600" />
+    </div>
+  )}
+  <span className="hidden sm:block text-sm text-gray-600 max-w-24 truncate">
+    {user?.full_name || user?.name || "User"}
+  </span>
+</div>
                 </button>
-                
-                {/* Profile Dropdown Menu */}
+
+                {/* Profile Dropdown */}
                 <AnimatePresence>
                   {isProfileDropdownOpen && (
                     <motion.div
@@ -141,15 +125,15 @@ export default function Navbar() {
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 10, scale: 0.95 }}
                       transition={{ duration: 0.2 }}
-                      className="absolute right-4 top-full mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 z-50"
+                      className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 z-50"
                     >
                       {/* User Info */}
                       <div className="p-4 border-b border-gray-200">
                         <div className="flex items-center gap-3">
                           {user?.profile_image ? (
-                            <img 
-                              src={user.profile_image} 
-                              alt="Profile" 
+                            <img
+                              src={user.profile_image}
+                              alt="Profile"
                               className="w-10 h-10 rounded-full object-cover"
                             />
                           ) : (
@@ -159,7 +143,7 @@ export default function Navbar() {
                           )}
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-gray-900 text-sm truncate">
-                              {user?.full_name || user?.name || 'User'}
+                              {user?.full_name || user?.name || "User"}
                             </p>
                             <p className="text-xs text-gray-500 truncate">
                               {user?.email}
@@ -172,26 +156,27 @@ export default function Navbar() {
                       <div className="p-2">
                         <Link
                           href="/profile"
-                          className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition"
                           onClick={() => setIsProfileDropdownOpen(false)}
+                          className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition"
                         >
                           <UserCircle size={16} />
                           My Profile
                         </Link>
+
                         <Link
                           href="/orders"
-                          className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition"
                           onClick={() => setIsProfileDropdownOpen(false)}
+                          className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition"
                         >
                           <Package size={16} />
                           My Orders
                         </Link>
                       </div>
 
-                      {/* Logout Button */}
+                      {/* Logout */}
                       <div className="p-2 border-t border-gray-200">
                         <button
-                          onClick={handleLogoutClick}
+                          onClick={() => setShowLogoutConfirm(true)}
                           className="flex items-center gap-3 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition"
                         >
                           <LogOut size={16} />
@@ -203,22 +188,18 @@ export default function Navbar() {
                 </AnimatePresence>
               </div>
             ) : (
-              <div className="flex gap-2">
-                <Link
-                  href="/login"
-                  className="
-                    px-4 py-2 text-blue-600 border border-blue-600 rounded-lg text-sm 
-                    hover:bg-blue-50 transition
-                  "
-                >
-                  Login
-                </Link>
-              </div>
+              // Logged Out
+              <Link
+                href="/login"
+                className="px-4 py-2 text-blue-600 border border-blue-600 rounded-lg text-sm hover:bg-blue-50 transition"
+              >
+                Login
+              </Link>
             )}
 
-            {/* Mobile Menu Button */}
+            {/* Mobile Menu */}
             <button
-              onClick={() => setIsOpen(!isOpen)}
+              onClick={() => setIsOpen((prev) => !prev)}
               className="md:hidden p-2 rounded-lg hover:bg-gray-100 transition"
             >
               {isOpen ? <X size={24} /> : <Menu size={24} />}
@@ -226,7 +207,7 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* Mobile Menu */}
+        {/* Mobile Menu Dropdown */}
         <AnimatePresence>
           {isOpen && (
             <motion.div
@@ -246,9 +227,8 @@ export default function Navbar() {
                   {item.label}
                 </Link>
               ))}
-              
-              {/* Mobile Auth Links */}
-              {!isAuthenticated && (
+
+              {!isAuthenticated && hasMounted && (
                 <div className="pt-4 border-t border-gray-200 mt-2">
                   <Link
                     href="/login"
@@ -286,13 +266,13 @@ export default function Navbar() {
                 </p>
                 <div className="flex gap-3">
                   <button
-                    onClick={cancelLogout}
+                    onClick={() => setShowLogoutConfirm(false)}
                     className="flex-1 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition font-medium"
                   >
                     Cancel
                   </button>
                   <button
-                    onClick={confirmLogout}
+                    onClick={handleLogout}
                     className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium"
                   >
                     Logout

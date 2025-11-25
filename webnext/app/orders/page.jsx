@@ -56,7 +56,7 @@ export default function OrdersPage() {
   if (loading) {
     return (
       <>
-        <Navbar />
+        {/* <Navbar /> */}
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">Loading orders...</div>
         </div>
@@ -67,7 +67,7 @@ export default function OrdersPage() {
 
   return (
     <>
-      <Navbar />
+      {/* <Navbar /> */}
       <div className="min-h-screen bg-background py-12 px-4">
         <div className="max-w-6xl mx-auto">
           <h1 className="text-4xl font-bold mb-8">My Orders</h1>

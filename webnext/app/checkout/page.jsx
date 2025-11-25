@@ -184,7 +184,7 @@ const displayItems = items.map(item => {
                                 onClick={() => {
                                   if (isAuthenticated) {
                                     // Use API for authenticated users
-                                    dispatch(updateCartItemAPI({ 
+                                    dispatch(updateQuantity({ 
                                       itemId: item.cart_item_id, 
                                       quantity: Math.max(1, item.quantity - 1) 
                                     }));
@@ -204,7 +204,7 @@ const displayItems = items.map(item => {
                               <button
                                 onClick={() => {
                                   if (isAuthenticated) {
-                                    dispatch(updateCartItemAPI({ 
+                                    dispatch(updateQuantity({ 
                                       itemId: item.cart_item_id, 
                                       quantity: item.quantity + 1 
                                     }));
@@ -226,7 +226,7 @@ const displayItems = items.map(item => {
                             <button
                               onClick={() => {
                                 if (isAuthenticated) {
-                                  dispatch(removeFromCartAPI(item.cart_item_id));
+                                  dispatch(clearCartAPI(item.cart_item_id));
                                 } else {
                                   dispatch(removeFromCart(item.id));
                                 }

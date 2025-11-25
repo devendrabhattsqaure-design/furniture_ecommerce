@@ -1,3 +1,4 @@
+// backend/src/routes/admin.routes.js
 const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middlewares/auth.middleware');
@@ -8,9 +9,16 @@ router.get('/dashboard/stats', protect, authorize('admin', 'employee'), getDashb
 router.get('/dashboard/sales-chart', protect, authorize('admin', 'employee'), getSalesChart);
 
 // Orders
-const { getAllOrders, updateOrderStatus } = require('../controllers/admin/order.controller');
+const { 
+  getAllOrders, 
+  getOrderById, 
+  updateOrderStatus, 
+  deleteOrder 
+} = require('../controllers/admin/order.controller');
 router.get('/orders', protect, authorize('admin', 'employee'), getAllOrders);
+router.get('/orders/:orderId', protect, authorize('admin', 'employee'), getOrderById); // Add this
 router.put('/orders/:orderId/status', protect, authorize('admin', 'employee'), updateOrderStatus);
+router.delete('/orders/:orderId', protect, authorize('admin', 'employee'), deleteOrder); // Add this
 
 // Users
 const { getAllUsers, updateUserStatus, deleteUser } = require('../controllers/admin/user.controller');

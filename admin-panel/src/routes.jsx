@@ -1,3 +1,4 @@
+// admin-panel/src/routes.js
 import {
   HomeIcon,
   UserCircleIcon,
@@ -10,16 +11,18 @@ import {
   DocumentTextIcon,
   PhotoIcon,
   TagIcon,
+  ShoppingBagIcon, // Add this import
 } from "@heroicons/react/24/solid";
 import { Home, Profile, Tables, Notifications } from "@/pages/dashboard";
 import { SignIn, SignUp } from "@/pages/auth";
 
-// Import new components
+// Import all management components
 import UserManagement from "@/pages/dashboard/UserManagement";
 import ProductManagement from "@/pages/dashboard/ProductManagement";
 import BlogManagement from "@/pages/dashboard/BlogManagement";
 import SliderManagement from "@/pages/dashboard/SliderManagement";
 import CategoryManagement from "@/pages/dashboard/CategoryManagement";
+import OrderManagement from "@/pages/dashboard/OrderManagement"; // Add this import
 
 const icon = {
   className: "w-5 h-5 text-inherit",
@@ -36,20 +39,16 @@ const getUserRole = () => {
       return user.role;
     }
     return null;
-    
   } catch (error) {
     console.error('Error parsing user data:', error);
     return null;
   }
 };
 
-
 const isAdmin = () => {
   const role = getUserRole();
-  
   return role === 'admin';
 };
-
 
 // Base dashboard pages (always visible)
 const baseDashboardPages = [
@@ -59,7 +58,6 @@ const baseDashboardPages = [
     path: "/home",
     element: <Home />,
   },
- 
   {
     icon: <DocumentTextIcon {...icon} />,
     name: "blog",
@@ -106,17 +104,22 @@ const adminPages = [
     path: "/user-management",
     element: <UserManagement />,
   },
-   {
+  {
     icon: <CubeIcon {...icon} />,
     name: "product management",
     path: "/product-management",
     element: <ProductManagement />,
   },
+  {
+    icon: <ShoppingBagIcon {...icon} />, // Add order management icon
+    name: "order management",
+    path: "/order-management",
+    element: <OrderManagement />,
+  },
 ];
 
 // Combine pages based on user role
 const getDashboardPages = () => {
-  
   if (isAdmin()) {
     return [baseDashboardPages[0], ...adminPages, ...baseDashboardPages.slice(1)];
   }

@@ -4,7 +4,7 @@ import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Package, Shield, Sparkles, Star, ArrowRight, Zap } from 'lucide-react';
-import Navbar from '@/components/navbar.jsx';
+
 import Footer from '@/components/footer.jsx';
 import ProductCard from '@/components/product-card.jsx';
 import Newsletter from '@/components/newsletter.jsx';
@@ -95,29 +95,36 @@ export default function Home() {
 
     return () => clearTimeout(timer);
   }, []);
-    useEffect(() => {
-      if (mounted) {
-      console.log('Home page mounted, fetching featured products...');
-      if (!isAuthenticated) {
-        router.push('/login');
-        return;
-      }
-      
-      const loadData = async () => {
-        try {
-          await dispatch(fetchUserProfile()).unwrap();
-          await dispatch(fetchAddresses()).unwrap();
-        } catch (error) {
-          console.error('Failed to load data:', error);
-          if (error.message.includes('401') || error.message.includes('token')) {
-            localStorage.removeItem('token');
-            router.push('/login');
-          }
+ // In your Home component, update the useEffect
+useEffect(() => {
+  if (mounted) {
+    console.log('Home page mounted, checking authentication...');
+    
+    // Use auth slice for authentication check, not user slice
+    if (!isAuthenticated) {
+      console.log('User not authenticated, redirecting to login...');
+      router.push('/login');
+      return;
+    }
+    
+    console.log('User is authenticated, loading data...');
+    
+    const loadData = async () => {
+      try {
+        await dispatch(fetchUserProfile()).unwrap();
+        await dispatch(fetchAddresses()).unwrap();
+      } catch (error) {
+        console.error('Failed to load data:', error);
+        if (error.message.includes('401') || error.message.includes('token')) {
+          localStorage.removeItem('token');
+          router.push('/login');
         }
-      };
-      
-      loadData();}
-    }, [isAuthenticated, router, dispatch,mounted]);
+      }
+    };
+    
+    loadData();
+  }
+}, [isAuthenticated, router, dispatch, mounted]);
 
   // Fetch featured products on mount
   useEffect(() => {

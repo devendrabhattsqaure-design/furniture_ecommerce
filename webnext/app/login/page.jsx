@@ -31,16 +31,16 @@ export default function LoginPage() {
     try {
       console.log('Starting login process...');
       const result = await dispatch(loginUser(email, password));
-      console.log('Login result:', result);
+      console.log('Login result:', result.success);
       
       // Check if login was successful by looking at the action type
-      if (result.type.endsWith('/fulfilled')) {
+      if (result.success=='true') {
         console.log('Login successful, checking authentication state...');
         // The state should be updated by now, so we can check isAuthenticated
         // Or we can redirect directly since we know it was successful
         setTimeout(() => {
           router.push('/');
-        }, 100);
+        }, 2000);
       }
     } catch (error) {
       console.error('Login failed:', error);

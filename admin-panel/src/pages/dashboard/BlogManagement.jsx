@@ -173,23 +173,49 @@ const BlogManagement = () => {
   };
 
   // Handle edit
-  const handleEdit = (post) => {
-    setEditingPost(post);
-    setFormData({
-      title: post.title,
-      slug: post.slug,
-      content: post.content,
-      excerpt: post.excerpt || '',
-      featured_image: post.featured_image || '',
-      category: post.category || '',
-      tags: post.tags ? (typeof post.tags === 'string' ? JSON.parse(post.tags).join(', ') : post.tags.join(', ')) : '',
-      is_published: post.is_published,
-      meta_title: post.meta_title || '',
-      meta_description: post.meta_description || ''
-    });
-    setImagePreview(post.featured_image || null);
-    setShowModal(true);
-  };
+ // Handle edit
+const handleEdit = (post) => {
+  setEditingPost(post);
+  
+  // Fix for tags parsing
+  let tagsValue = '';
+  if (post.tags) {
+    try {
+      // Check if tags is already an array
+      if (Array.isArray(post.tags)) {
+        tagsValue = post.tags.join(', ');
+      } 
+      // Check if tags is a string that needs parsing
+      else if (typeof post.tags === 'string') {
+        const parsedTags = JSON.parse(post.tags);
+        tagsValue = Array.isArray(parsedTags) ? parsedTags.join(', ') : post.tags;
+      }
+      // If it's neither array nor parseable string, use as is
+      else {
+        tagsValue = String(post.tags);
+      }
+    } catch (error) {
+      console.error('Error parsing tags:', error);
+      // If JSON parsing fails, use the original string
+      tagsValue = String(post.tags);
+    }
+  }
+
+  setFormData({
+    title: post.title,
+    slug: post.slug,
+    content: post.content,
+    excerpt: post.excerpt || '',
+    featured_image: post.featured_image || '',
+    category: post.category || '',
+    tags: tagsValue, // Use the safely processed tags value
+    is_published: post.is_published,
+    meta_title: post.meta_title || '',
+    meta_description: post.meta_description || ''
+  });
+  setImagePreview(post.featured_image || null);
+  setShowModal(true);
+};
 
   // Handle delete
   const handleDelete = async (postId) => {
