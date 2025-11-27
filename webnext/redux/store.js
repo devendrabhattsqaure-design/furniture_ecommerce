@@ -10,6 +10,7 @@ import addressReducer from './slices/addressSlice.js'; // Add this import
 import userReducer from './slices/userSlice';
 import orerReducer from './slices/orderSlice.js';
 
+
 export const store = configureStore({
   reducer: {
     auth: authReducer,
@@ -21,5 +22,6 @@ export const store = configureStore({
     address: addressReducer, // Add this line
     user: userReducer, // Add this line
     order: orerReducer, // Add this line
+   
   },
 });

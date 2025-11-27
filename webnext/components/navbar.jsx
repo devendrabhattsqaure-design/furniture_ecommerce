@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks.js';
 import { logoutUserAsync } from '@/redux/slices/authSlice.js';
 
-import { ShoppingCart, Menu, X, User, LogOut, UserCircle, Package } from 'lucide-react';
+import { ShoppingCart, Menu, X, User, LogOut, UserCircle, Package, BookOpen } from 'lucide-react';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -16,8 +16,8 @@ export default function Navbar() {
 
   const dispatch = useAppDispatch();
 
-const { isAuthenticated } = useAppSelector((state) => state.auth);
-const { user } = useAppSelector((state) => state.user);
+  const { isAuthenticated } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state) => state.user);
   const { totalQuantity, items } = useAppSelector((state) => state.cart);
 
   const profileDropdownRef = useRef(null);
@@ -44,6 +44,7 @@ const { user } = useAppSelector((state) => state.user);
   const navItems = [
     { label: 'Home', href: '/' },
     { label: 'Shop', href: '/shop' },
+    { label: 'Blog', href: '/blog' }, // Added Blog option
     { label: 'About', href: '/about' },
     { label: 'Contact', href: '/contact' },
   ];
@@ -89,9 +90,8 @@ const { user } = useAppSelector((state) => state.user);
               )}
             </Link>
 
-            {/* AUTH SECTION FIXED (NO HYDRATION ERROR) */}
+            {/* AUTH SECTION */}
             {!hasMounted ? (
-              // SSR & First Client Render → SAME HTML
               <div className="w-8 h-8 bg-gray-200 rounded-full animate-pulse" />
             ) : isAuthenticated ? (
               <div className="flex items-center gap-3 relative" ref={profileDropdownRef}>
@@ -99,22 +99,22 @@ const { user } = useAppSelector((state) => state.user);
                   onClick={() => setIsProfileDropdownOpen((prev) => !prev)}
                   className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 transition"
                 >
-                 <div className="flex items-center gap-2">
-  {user?.profile_image ? (
-    <img
-      src={user.profile_image}
-      alt="Profile"
-      className="w-8 h-8 rounded-full object-cover"
-    />
-  ) : (
-    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-      <User size={16} className="text-blue-600" />
-    </div>
-  )}
-  <span className="hidden sm:block text-sm text-gray-600 max-w-24 truncate">
-    {user?.full_name || user?.name || "User"}
-  </span>
-</div>
+                  <div className="flex items-center gap-2">
+                    {user?.profile_image ? (
+                      <img
+                        src={user.profile_image}
+                        alt="Profile"
+                        className="w-8 h-8 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                        <User size={16} className="text-blue-600" />
+                      </div>
+                    )}
+                    <span className="hidden sm:block text-sm text-gray-600 max-w-24 truncate">
+                      {user?.full_name || user?.name || "User"}
+                    </span>
+                  </div>
                 </button>
 
                 {/* Profile Dropdown */}
@@ -171,6 +171,16 @@ const { user } = useAppSelector((state) => state.user);
                           <Package size={16} />
                           My Orders
                         </Link>
+
+                        {/* Added Blog Link in Profile Dropdown */}
+                        <Link
+                          href="/blog"
+                          onClick={() => setIsProfileDropdownOpen(false)}
+                          className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition"
+                        >
+                          <BookOpen size={16} />
+                          Blog
+                        </Link>
                       </div>
 
                       {/* Logout */}
@@ -188,7 +198,6 @@ const { user } = useAppSelector((state) => state.user);
                 </AnimatePresence>
               </div>
             ) : (
-              // Logged Out
               <Link
                 href="/login"
                 className="px-4 py-2 text-blue-600 border border-blue-600 rounded-lg text-sm hover:bg-blue-50 transition"
@@ -222,8 +231,9 @@ const { user } = useAppSelector((state) => state.user);
                   key={item.href}
                   href={item.href}
                   onClick={() => setIsOpen(false)}
-                  className="block py-3 text-gray-700 hover:text-blue-600 font-medium transition"
+                  className="flex items-center gap-3 py-3 text-gray-700 hover:text-blue-600 font-medium transition"
                 >
+                  {item.label === 'Blog' && <BookOpen size={16} />}
                   {item.label}
                 </Link>
               ))}

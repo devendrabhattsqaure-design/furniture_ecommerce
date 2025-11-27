@@ -25,7 +25,7 @@
   --color-border: rgb(229 231 235);
 }
 
-/* Dark mode variables using prefers-color-scheme outside @theme block */
+
 @media (prefers-color-scheme: dark) {
   :root {
     --color-primary: rgb(248 113 113);

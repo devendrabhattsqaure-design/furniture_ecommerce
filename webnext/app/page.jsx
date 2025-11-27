@@ -2,18 +2,20 @@
 
 import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
 import { useState, useEffect } from 'react';
+import dynamic from "next/dynamic";
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Package, Shield, Sparkles, Star, ArrowRight, Zap } from 'lucide-react';
+import {  Package, Shield, Sparkles, Star, ArrowRight, Zap } from 'lucide-react';
 
-import Footer from '@/components/footer.jsx';
-import ProductCard from '@/components/product-card.jsx';
-import Newsletter from '@/components/newsletter.jsx';
-import CTABanner from '@/components/cta-banner.jsx';
-import TestimonialSlider from '@/components/testimonial-slider.jsx';
-import ScrollReveal from '@/components/scroll-reveal.jsx';
+const Footer = dynamic(() => import('@/components/footer.jsx'));
+const Newsletter = dynamic(() => import('@/components/newsletter.jsx'));
+const CTABanner = dynamic(() => import('@/components/cta-banner.jsx'));
+const TestimonialSlider = dynamic(() => import('@/components/testimonial-slider.jsx'));
+const ProductCard = dynamic(() => import('@/components/product-card.jsx'));
+const ScrollReveal = dynamic(() => import('@/components/scroll-reveal.jsx'), { ssr: false });
+
 import { useAppDispatch, useAppSelector } from '@/redux/hooks.js';
 import { getProducts } from '@/redux/slices/productSlice.js';
-import Particles from '@/components/Particles.jsx';
+const  Particles = dynamic(()=> import('@/components/Particles.jsx'), { ssr: false });
 import { 
   fetchUserProfile, 
 
@@ -100,12 +102,7 @@ useEffect(() => {
   if (mounted) {
     console.log('Home page mounted, checking authentication...');
     
-    // Use auth slice for authentication check, not user slice
-    if (!isAuthenticated) {
-      console.log('User not authenticated, redirecting to login...');
-      router.push('/login');
-      return;
-    }
+ 
     
     console.log('User is authenticated, loading data...');
     
@@ -114,7 +111,7 @@ useEffect(() => {
         await dispatch(fetchUserProfile()).unwrap();
         await dispatch(fetchAddresses()).unwrap();
       } catch (error) {
-        console.error('Failed to load data:', error);
+        console.log('Failed to load data:', error);
         if (error.message.includes('401') || error.message.includes('token')) {
           localStorage.removeItem('token');
           router.push('/login');
@@ -169,10 +166,10 @@ useEffect(() => {
   const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % BANNER_SLIDES.length);
   const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + BANNER_SLIDES.length) % BANNER_SLIDES.length);
 
-  // Get featured products for display
+
   const featuredProducts = products?.filter(product => product.is_featured) || [];
 
-  // Show loading state until page is ready
+  
   if (!mounted || !pageReady) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">

@@ -76,6 +76,12 @@ const baseDashboardPages = [
     path: "/category",
     element: <CategoryManagement />,
   },
+   {
+    icon: <CubeIcon {...icon} />,
+    name: "product management",
+    path: "/product-management",
+    element: <ProductManagement />,
+  },
   {
     icon: <UserCircleIcon {...icon} />,
     name: "profile",
@@ -104,12 +110,7 @@ const adminPages = [
     path: "/user-management",
     element: <UserManagement />,
   },
-  {
-    icon: <CubeIcon {...icon} />,
-    name: "product management",
-    path: "/product-management",
-    element: <ProductManagement />,
-  },
+ 
   {
     icon: <ShoppingBagIcon {...icon} />, // Add order management icon
     name: "order management",

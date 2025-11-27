@@ -2,9 +2,11 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import { AnimatePresence, motion } from 'framer-motion';
 import './globals.css';
 import { ReduxProvider } from '@/redux/provider.jsx';
-import LayoutClient from '@/components/layout-client.jsx';
-import CartHydration from '@/components/cart-hydration.jsx';
-
+import dynamic from 'next/dynamic';
+// import LayoutClient from '@/components/layout-client.jsx';
+// import CartHydration from '@/components/cart-hydration.jsx';
+const LayoutClient = dynamic(() => import('@/components/layout-client.jsx'));
+const CartHydration  = dynamic(()=> import('@/components/cart-hydration.jsx'))
 const geistSans = Geist({ subsets: ['latin'] });
 const geistMono = Geist_Mono({ subsets: ['latin'] });
 

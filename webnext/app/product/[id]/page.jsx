@@ -4,13 +4,14 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import Navbar from '@/components/navbar.jsx';
-import Footer from '@/components/footer.jsx';
+import dynamic from 'next/dynamic';
+
+// import Footer from '@/components/footer.jsx';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks.js';
 import { addToCart } from '@/redux/slices/cartSlice.js';
 import { addToWishlist } from '@/redux/slices/wishlistSlice.js';
 import { getProductById } from '@/redux/slices/productSlice.js';
-
+const Footer = dynamic(()=> import('@/components/footer.jsx'))
 export default function ProductDetail() {
   const params = useParams();
   const productId = params.id;
@@ -100,7 +101,7 @@ export default function ProductDetail() {
   if (loading) {
     return (
       <>
-        <Navbar />
+        {/* <Navbar /> */}
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
@@ -115,7 +116,7 @@ export default function ProductDetail() {
   if (error) {
     return (
       <>
-        <Navbar />
+        {/* <Navbar /> */}
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
             <p className="text-2xl text-red-500 mb-4">Error loading product</p>
@@ -130,7 +131,7 @@ export default function ProductDetail() {
   if (!product) {
     return (
       <>
-        <Navbar />
+        {/* <Navbar /> */}
         <div className="min-h-screen flex items-center justify-center">
           <p className="text-2xl text-foreground/70">Product not found</p>
         </div>

@@ -18,12 +18,12 @@ export default function LoginPage() {
   const { loading, error, isAuthenticated } = useAppSelector(state => state.auth);
 
   // Redirect if already authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      console.log('User is authenticated, redirecting to home...');
-      router.push('/');
-    }
-  }, [isAuthenticated, router]);
+  // useEffect(() => {
+  //   if (isAuthenticated) {
+  //     console.log('User is authenticated, redirecting to home...');
+  //     router.push('/');
+  //   }
+  // }, [isAuthenticated, router]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -32,15 +32,14 @@ export default function LoginPage() {
       console.log('Starting login process...');
       const result = await dispatch(loginUser(email, password));
       console.log('Login result:', result.success);
+       router.push('/');
       
-      // Check if login was successful by looking at the action type
       if (result.success=='true') {
         console.log('Login successful, checking authentication state...');
-        // The state should be updated by now, so we can check isAuthenticated
-        // Or we can redirect directly since we know it was successful
+        
         setTimeout(() => {
           router.push('/');
-        }, 2000);
+        }, 1000);
       }
     } catch (error) {
       console.error('Login failed:', error);
