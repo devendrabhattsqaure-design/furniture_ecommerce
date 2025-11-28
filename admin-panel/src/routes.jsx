@@ -11,18 +11,22 @@ import {
   DocumentTextIcon,
   PhotoIcon,
   TagIcon,
-  ShoppingBagIcon, // Add this import
+  ShoppingBagIcon, 
+  CalendarDaysIcon,
+  EyeIcon,
 } from "@heroicons/react/24/solid";
 import { Home, Profile, Tables, Notifications } from "@/pages/dashboard";
 import { SignIn, SignUp } from "@/pages/auth";
 
 // Import all management components
 import UserManagement from "@/pages/dashboard/UserManagement";
+import AttendanceManagement from "./pages/dashboard/AttendanceManagement";
 import ProductManagement from "@/pages/dashboard/ProductManagement";
 import BlogManagement from "@/pages/dashboard/BlogManagement";
 import SliderManagement from "@/pages/dashboard/SliderManagement";
 import CategoryManagement from "@/pages/dashboard/CategoryManagement";
-import OrderManagement from "@/pages/dashboard/OrderManagement"; // Add this import
+import OrderManagement from "@/pages/dashboard/OrderManagement";
+import UserDetailsPage from "./pages/dashboard/UserDetailsPage";
 
 const icon = {
   className: "w-5 h-5 text-inherit",
@@ -76,7 +80,13 @@ const baseDashboardPages = [
     path: "/category",
     element: <CategoryManagement />,
   },
-   {
+  {
+    icon: <CalendarDaysIcon {...icon} />,
+    name: "Attendance",
+    path: "/attendance",
+    element: <AttendanceManagement />,
+  },
+  {
     icon: <CubeIcon {...icon} />,
     name: "product management",
     path: "/product-management",
@@ -110,27 +120,42 @@ const adminPages = [
     path: "/user-management",
     element: <UserManagement />,
   },
- 
   {
-    icon: <ShoppingBagIcon {...icon} />, // Add order management icon
+    icon: <ShoppingBagIcon {...icon} />,
     name: "order management",
     path: "/order-management",
     element: <OrderManagement />,
   },
 ];
 
+// User details page (hidden from sidebar)
+const userDetailsPage = {
+  icon: <EyeIcon {...icon} />,
+  name: "user details",
+  path: "/users/:userId", // Changed from "/dashboard/users/:userId" to "/users/:userId"
+  element: <UserDetailsPage />,
+  hideFromSidebar: true,
+};
+
 // Combine pages based on user role
 const getDashboardPages = () => {
+  const pages = [...baseDashboardPages];
+  
   if (isAdmin()) {
-    return [baseDashboardPages[0], ...adminPages, ...baseDashboardPages.slice(1)];
+    // Add admin pages after dashboard
+    pages.splice(1, 0, ...adminPages);
   }
-  return baseDashboardPages;
+  
+  return pages;
 };
 
 export const routes = [
   {
     layout: "dashboard",
-    pages: getDashboardPages(),
+    pages: [
+      ...getDashboardPages(),
+      userDetailsPage, // Add user details page
+    ],
   },
   {
     title: "auth pages",

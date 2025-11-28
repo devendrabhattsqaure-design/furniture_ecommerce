@@ -13,18 +13,21 @@ const TestimonialSlider = dynamic(() => import('@/components/testimonial-slider.
 const ProductCard = dynamic(() => import('@/components/product-card.jsx'));
 const ScrollReveal = dynamic(() => import('@/components/scroll-reveal.jsx'), { ssr: false });
 
+// Import the new components
+const CategoryShowcase = dynamic(() => import('@/components/category-showcase.jsx'));
+const HorizontalProductScroll = dynamic(() => import('@/components/horizontal-product-scroll.jsx'));
+const StatsSection = dynamic(() => import('@/components/stats-section.jsx'));
+const ProcessSection = dynamic(() => import('@/components/process-section.jsx'));
+
 import { useAppDispatch, useAppSelector } from '@/redux/hooks.js';
 import { getProducts } from '@/redux/slices/productSlice.js';
 const  Particles = dynamic(()=> import('@/components/Particles.jsx'), { ssr: false });
 import { 
   fetchUserProfile, 
-
 } from '@/redux/slices/userSlice';
 import { 
   fetchAddresses, 
-
 } from '@/redux/slices/addressSlice';
-
 
 const BANNER_SLIDES = [
   {
@@ -50,7 +53,7 @@ const BANNER_SLIDES = [
     title: 'Luxury Comfort',
     subtitle: 'Live in Style',
     description: 'Elevate every moment with furniture that speaks to your soul',
-    image: '/luxury-furniture-sofa.jpg',
+    image: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=1200&h=800&fit=crop',
     cta: 'Discover',
     bg: 'from-amber-600/20 via-orange-500/20 to-red-500/20'
   }
@@ -97,31 +100,29 @@ export default function Home() {
 
     return () => clearTimeout(timer);
   }, []);
- // In your Home component, update the useEffect
-useEffect(() => {
-  if (mounted) {
-    console.log('Home page mounted, checking authentication...');
-    
  
-    
-    console.log('User is authenticated, loading data...');
-    
-    const loadData = async () => {
-      try {
-        await dispatch(fetchUserProfile()).unwrap();
-        await dispatch(fetchAddresses()).unwrap();
-      } catch (error) {
-        console.log('Failed to load data:', error);
-        if (error.message.includes('401') || error.message.includes('token')) {
-          localStorage.removeItem('token');
-          router.push('/login');
+  useEffect(() => {
+    if (mounted) {
+      console.log('Home page mounted, checking authentication...');
+      
+      console.log('User is authenticated, loading data...');
+      
+      const loadData = async () => {
+        try {
+          await dispatch(fetchUserProfile()).unwrap();
+          await dispatch(fetchAddresses()).unwrap();
+        } catch (error) {
+          console.log('Failed to load data:', error);
+          if (error.message.includes('401') || error.message.includes('token')) {
+            localStorage.removeItem('token');
+            router.push('/login');
+          }
         }
-      }
-    };
-    
-    loadData();
-  }
-}, [isAuthenticated, router, dispatch, mounted]);
+      };
+      
+      loadData();
+    }
+  }, [isAuthenticated, router, dispatch, mounted]);
 
   // Fetch featured products on mount
   useEffect(() => {
@@ -166,7 +167,6 @@ useEffect(() => {
   const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % BANNER_SLIDES.length);
   const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + BANNER_SLIDES.length) % BANNER_SLIDES.length);
 
-
   const featuredProducts = products?.filter(product => product.is_featured) || [];
 
   
@@ -183,8 +183,6 @@ useEffect(() => {
 
   return (
     <>
-      {/* <Navbar /> */}
-      
       {/* Banner Slider */}
       <section className="relative h-[90vh] overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800">
         {/* Animated Background Particles */}
@@ -320,68 +318,19 @@ useEffect(() => {
         </div>
       </section>
 
-      {/* 3D Parallax Features Section */}
-      <section className="py-24 px-4 bg-background relative overflow-hidden">
-        {/* Fixed: Use the pre-defined parallaxY hook instead of calling useTransform in JSX */}
-        <motion.div
-          style={{ y: parallaxY }}
-          className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl"
-        />
-        
-        <div className="max-w-6xl mx-auto relative z-10">
-          <motion.div
-            style={{ scale, rotateX }}
-            className="grid grid-cols-1 md:grid-cols-3 gap-8 perspective-1000"
-          >
-            {[
-              { Icon: Package, title: 'Free Shipping', desc: 'On orders over ₹1000', color: 'from-blue-500 to-cyan-500' },
-              { Icon: Sparkles, title: 'Premium Quality', desc: 'Carefully curated selection', color: 'from-purple-500 to-pink-500' },
-              { Icon: Shield, title: 'Guaranteed Safe', desc: '100% secure checkout', color: 'from-orange-500 to-red-500' },
-            ].map((feature, idx) => (
-              <ScrollReveal key={idx} delay={idx * 0.1}>
-                <motion.div
-                  whileHover={{ 
-                    scale: 1.05, 
-                    rotateY: 10,
-                    z: 50
-                  }}
-                  transition={{ type: "spring", stiffness: 300 }}
-                  className="relative p-8 bg-gradient-to-br from-accent to-accent/50 rounded-3xl overflow-hidden group cursor-pointer"
-                  style={{ transformStyle: 'preserve-3d' }}
-                >
-                  <div className={`absolute inset-0 bg-gradient-to-br ${feature.color} opacity-0 group-hover:opacity-10 transition-opacity duration-500`} />
-                  
-                  <motion.div
-                    whileHover={{ rotate: 360, scale: 1.2 }}
-                    transition={{ duration: 0.6 }}
-                    className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-6 shadow-lg`}
-                  >
-                    <feature.Icon className="w-8 h-8 text-white" />
-                  </motion.div>
-                  
-                  <h3 className="font-bold text-2xl mb-3">{feature.title}</h3>
-                  <p className="text-foreground/60">{feature.desc}</p>
-                  
-                  <motion.div
-                    initial={{ width: 0 }}
-                    whileHover={{ width: '100%' }}
-                    className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-primary to-purple-500"
-                  />
-                </motion.div>
-              </ScrollReveal>
-            ))}
-          </motion.div>
-        </div>
-      </section>
+      {/* Stats Section */}
+      {/* <StatsSection /> */}
 
-      {/* Featured Products with Magnetic Effect */}
-      <section className="py-24 px-4 bg-gradient-to-b from-background to-accent/20">
-        <div className="max-w-6xl mx-auto">
+      {/* Category Showcase */}
+      <CategoryShowcase />
+
+      {/* Featured Products Section */}
+      <section className="py-20 px-4 bg-gradient-to-b from-background to-accent/20">
+        <div className="max-w-7xl mx-auto">
           <motion.div
-            initial={{ opacity: 0, y: 50 }}
+            initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.8 }}
             className="text-center mb-16"
           >
             <motion.div
@@ -395,29 +344,30 @@ useEffect(() => {
               <span className="text-primary font-semibold">Featured Collection</span>
             </motion.div>
             
-            <h2 className="text-5xl md:text-6xl font-bold mb-6 bg-clip-text text-primary">
-              Handpicked Just For You
+            <h2 className="text-4xl md:text-5xl font-bold mb-6">
+              Handpicked <span className="text-primary">Just For You</span>
             </h2>
-            <p className="text-foreground/60 text-xl max-w-2xl mx-auto">
-              Discover our carefully curated selection of premium furniture
+            <p className="text-foreground/60 text-lg max-w-2xl mx-auto">
+              Discover our carefully curated selection of premium furniture that combines style, comfort, and durability
             </p>
           </motion.div>
 
           {/* Products Grid */}
           {productsLoading && isInitialLoad ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
               {[1, 2, 3, 4, 5, 6].map(i => (
-                <div key={i} className="bg-accent rounded-lg p-4 animate-pulse">
-                  <div className="h-48 bg-gray-300 rounded mb-4"></div>
-                  <div className="h-4 bg-gray-300 rounded mb-2"></div>
-                  <div className="h-4 bg-gray-300 rounded w-3/4"></div>
+                <div key={i} className="bg-accent rounded-2xl p-6 animate-pulse">
+                  <div className="h-64 bg-gray-300 rounded-xl mb-4"></div>
+                  <div className="h-4 bg-gray-300 rounded mb-3"></div>
+                  <div className="h-4 bg-gray-300 rounded w-3/4 mb-4"></div>
+                  <div className="h-10 bg-gray-300 rounded-full"></div>
                 </div>
               ))}
             </div>
           ) : (
             <motion.div
               layout
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8"
             >
               {featuredProducts.map((product) => (
                 <motion.div
@@ -426,6 +376,7 @@ useEffect(() => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5 }}
+                  whileHover={{ y: -8 }}
                 >
                   <ProductCard 
                     id={product.product_id}
@@ -471,6 +422,74 @@ useEffect(() => {
           </motion.div>
         </div>
       </section>
+
+      {/* Best Sellers Horizontal Scroll */}
+      <HorizontalProductScroll 
+        title="Best Sellers" 
+        subtitle="Most loved by our customers" 
+      />
+
+      {/* 3D Parallax Features Section */}
+      <section className="py-20 px-4 bg-background relative overflow-hidden">
+        <motion.div
+          style={{ y: parallaxY }}
+          className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl"
+        />
+        
+        <div className="max-w-6xl mx-auto relative z-10">
+          <motion.div
+            style={{ scale, rotateX }}
+            className="grid grid-cols-1 md:grid-cols-3 gap-8 perspective-1000"
+          >
+            {[
+              { Icon: Package, title: 'Free Shipping', desc: 'On orders over ₹1000', color: 'from-blue-500 to-cyan-500' },
+              { Icon: Sparkles, title: 'Premium Quality', desc: 'Carefully curated selection', color: 'from-purple-500 to-pink-500' },
+              { Icon: Shield, title: 'Guaranteed Safe', desc: '100% secure checkout', color: 'from-orange-500 to-red-500' },
+            ].map((feature, idx) => (
+              <ScrollReveal key={idx} delay={idx * 0.1}>
+                <motion.div
+                  whileHover={{ 
+                    scale: 1.05, 
+                    rotateY: 10,
+                    z: 50
+                  }}
+                  transition={{ type: "spring", stiffness: 300 }}
+                  className="relative p-8 bg-gradient-to-br from-accent to-accent/50 rounded-3xl overflow-hidden group cursor-pointer border border-gray-200"
+                  style={{ transformStyle: 'preserve-3d' }}
+                >
+                  <div className={`absolute inset-0 bg-gradient-to-br ${feature.color} opacity-0 group-hover:opacity-10 transition-opacity duration-500`} />
+                  
+                  <motion.div
+                    whileHover={{ rotate: 360, scale: 1.2 }}
+                    transition={{ duration: 0.6 }}
+                    className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-6 shadow-lg`}
+                  >
+                    <feature.Icon className="w-8 h-8 text-white" />
+                  </motion.div>
+                  
+                  <h3 className="font-bold text-2xl mb-3 text-gray-900">{feature.title}</h3>
+                  <p className="text-foreground/60">{feature.desc}</p>
+                  
+                  <motion.div
+                    initial={{ width: 0 }}
+                    whileHover={{ width: '100%' }}
+                    className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-primary to-purple-500"
+                  />
+                </motion.div>
+              </ScrollReveal>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* New Arrivals Horizontal Scroll */}
+      <HorizontalProductScroll 
+        title="New Arrivals" 
+        subtitle="Fresh additions to our collection" 
+      />
+
+      {/* Process Section */}
+      <ProcessSection />
 
       <TestimonialSlider />
       <CTABanner />

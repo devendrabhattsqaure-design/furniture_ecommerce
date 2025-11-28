@@ -43,21 +43,21 @@ export default function ContactPage() {
     { 
       icon: MapPin, 
       title: 'Visit Our Showroom', 
-      content: '123 Design Street, Creative District, NY 10001',
+      content: '123 Design Street, Creative District, lko 226010',
       sub: 'Free parking available',
       color: 'text-red-500'
     },
     { 
       icon: Phone, 
       title: 'Call Us', 
-      content: '+1 (555) 123-4567',
+      content: '+91 9876543212',
       sub: 'Mon-Fri: 9AM-6PM EST',
       color: 'text-red-500'
     },
     { 
       icon: Mail, 
       title: 'Email Us', 
-      content: 'hello@luxuryfurniture.com',
+      content: 'hello@OakEmpaire.com',
       sub: 'We reply within 24 hours',
       color: 'text-red-500'
     },
@@ -312,7 +312,7 @@ export default function ContactPage() {
               <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-gray-800 to-gray-700 bg-clip-text text-transparent">
                 Visit Our Showroom
               </h2>
-              <p className="text-xl text-gray-600 mb-2">Bhatt Square</p>
+              <p className="text-xl text-gray-600 mb-2">OakEmpaire</p>
               <p className="text-lg text-gray-500">Come experience luxury furniture in person</p>
             </motion.div>
 
@@ -335,7 +335,7 @@ export default function ContactPage() {
               <div className="text-center p-6 bg-white rounded-2xl border border-gray-200">
                 <MapPin className="w-8 h-8 text-red-500 mx-auto mb-3" />
                 <h3 className="font-bold text-lg mb-2">Address</h3>
-                <p className="text-gray-600">Bhatt Square<br />Lucknow, Uttar Pradesh</p>
+                <p className="text-gray-600">OakEmpaire <br />Lucknow, Uttar Pradesh</p>
               </div>
               
               <div className="text-center p-6 bg-white rounded-2xl border border-gray-200">

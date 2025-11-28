@@ -24,26 +24,26 @@ export default function AboutPage() {
   const values = [
     { 
       icon: Target, 
-      title: 'Quality', 
-      desc: 'Premium materials and craftsmanship with lifetime warranty',
+      title: 'Premium Quality', 
+      desc: 'Premium quality materials combined with durable and long-lasting builds',
       color: 'text-red-500'
     },
     { 
-      icon: Leaf, 
-      title: 'Sustainability', 
-      desc: 'Eco-friendly production and responsibly sourced materials',
+      icon: Palette, 
+      title: 'Modern Design', 
+      desc: 'Elegant and modern designs that enhance every space beautifully',
       color: 'text-red-500'
     },
     { 
       icon: Lightbulb, 
-      title: 'Innovation', 
-      desc: 'Modern designs with timeless appeal and smart features',
+      title: 'Custom Solutions', 
+      desc: 'Tailored furniture solutions designed for your specific needs',
       color: 'text-red-500'
     },
     { 
       icon: Heart, 
       title: 'Customer First', 
-      desc: 'Your satisfaction is our top priority with 24/7 support',
+      desc: 'On-time delivery, professional installation, and customer-first approach',
       color: 'text-red-500'
     },
   ];
@@ -108,24 +108,24 @@ export default function AboutPage() {
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/80 backdrop-blur-sm border border-gray-200 mb-6"
               >
                 <Crown className="w-4 h-4 text-red-500" />
-                <span className="text-sm font-medium text-gray-700">Premium Furniture Since 2015</span>
+                <span className="text-sm font-medium text-gray-700">Where Craftsmanship Meets Strength</span>
               </motion.div>
               
               <h1 className="text-6xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                About Luxury
+                About OakEmpire
               </h1>
               <p className="text-xl md:text-2xl text-gray-600 mb-8 max-w-3xl mx-auto leading-relaxed">
-                Crafting exceptional furniture that transforms living spaces into sanctuaries of comfort, style, and sophistication.
+                Where craftsmanship meets strength, style, and lasting value. Furniture that stands strong for years—just like the mighty oak tree.
               </p>
               
-              <motion.div
+              {/* <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 1 }}
                 className="flex justify-center"
               >
                 <ChevronDown className="w-6 h-6 animate-bounce text-gray-600" />
-              </motion.div>
+              </motion.div> */}
             </motion.div>
           </div>
         </section>
@@ -142,22 +142,22 @@ export default function AboutPage() {
             >
               <motion.div variants={itemVariants}>
                 <h2 className="text-5xl font-bold mb-6 bg-gradient-to-r from-gray-800 to-gray-700 bg-clip-text text-transparent">
-                  Our Story
+                  Who We Are
                 </h2>
                 <div className="space-y-4 text-gray-700">
                   <p className="text-lg leading-relaxed">
-                    Founded in 2015, Luxury Furniture began with a simple yet powerful vision: to bring premium, 
-                    designer-quality furniture within reach of discerning homeowners. What started as a small 
-                    artisan workshop has blossomed into a trusted name in luxury home furnishings.
+                    Founded by <span className="font-semibold">Akshat Bhatt</span>, OakEmpire was built with a vision to create 
+                    furniture that stands strong for years—just like the mighty oak tree. At OakEmpire Furniture, we combine 
+                    modern design with unmatched durability.
                   </p>
                   <p className="text-lg leading-relaxed">
-                    Our journey is built on passion, craftsmanship, and an unwavering commitment to excellence. 
-                    Every piece in our collection tells a story of meticulous attention to detail and timeless design.
+                    The name <span className="font-semibold">"OakEmpire"</span> carries deep purpose: <span className="font-semibold">Oak</span> symbolizes 
+                    strength, durability, and timeless elegance—the king of hardwoods trusted for centuries. <span className="font-semibold">Empire</span> represents 
+                    growth, scale, leadership, and excellence—the legacy we aim to build.
                   </p>
                   <p className="text-lg leading-relaxed">
-                    Today, we partner with the world's most talented designers and craftsmen to curate an exclusive 
-                    collection that combines exceptional quality with contemporary aesthetics, creating heirlooms 
-                    for the modern home.
+                    Our goal is to transform living and working spaces with furniture that is stylish, functional, and built to last. 
+                    Every piece is thoughtfully designed, precisely crafted, and quality-approved to meet the highest industry standards.
                   </p>
                 </div>
               </motion.div>
@@ -189,10 +189,10 @@ export default function AboutPage() {
               className="text-center mb-16"
             >
               <h2 className="text-5xl font-bold mb-4 bg-gradient-to-r from-gray-800 to-gray-700 bg-clip-text text-transparent">
-                Our Values
+                Our Promise
               </h2>
               <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-                The principles that guide every piece we create and every customer we serve
+                The commitment that drives every piece we create and every customer we serve
               </p>
             </motion.div>
 
@@ -267,7 +267,7 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* Team Section */}
+        {/* What We Do Section */}
         <section className="py-20 px-4 bg-gradient-to-br from-gray-800 to-gray-900 text-white">
           <div className="max-w-6xl mx-auto">
             <motion.div
@@ -276,35 +276,126 @@ export default function AboutPage() {
               viewport={{ once: true }}
               className="text-center mb-16"
             >
-              <h2 className="text-5xl font-bold mb-4">Meet Our Team</h2>
+              <h2 className="text-5xl font-bold mb-4">What We Do</h2>
               <p className="text-xl text-gray-300 max-w-2xl mx-auto">
-                The passionate individuals behind our success story
+                Comprehensive furniture solutions for offices and homes
               </p>
             </motion.div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {[
-                { name: 'Devendra', role: 'Founder & CEO', bio: 'Visionary leader with 15+ years in luxury furniture design' },
-                { name: 'Aman', role: 'Head of Design', bio: 'Award-winning designer passionate about sustainable luxury' },
-                { name: 'Saurav', role: 'Head of Operations', bio: 'Ensuring seamless delivery of excellence worldwide' },
-              ].map((member, idx) => (
-                <motion.div
-                  key={idx}
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: idx * 0.1 }}
-                  whileHover={{ y: -5 }}
-                  className="text-center p-8 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 hover:border-white/30 transition-all duration-300"
-                >
-                  <div className="w-24 h-24 bg-gradient-to-br from-red-500 to-red-600 rounded-full mx-auto mb-6 flex items-center justify-center border-4 border-white/20">
-                    <Users className="w-10 h-10 text-white" />
-                  </div>
-                  <h3 className="font-bold text-2xl mb-2">{member.name}</h3>
-                  <p className="text-red-300 font-semibold mb-4">{member.role}</p>
-                  <p className="text-gray-300 text-sm leading-relaxed">{member.bio}</p>
-                </motion.div>
-              ))}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <motion.div
+                initial={{ opacity: 0, x: -30 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                className="p-8 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 hover:border-white/30 transition-all duration-300"
+              >
+                <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-red-600 rounded-2xl mb-6 flex items-center justify-center">
+                  <Package className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="font-bold text-3xl mb-4">🪑 Office Modular Furniture</h3>
+                <p className="text-gray-300 mb-4 leading-relaxed">
+                  High-performance modular office solutions focused on productivity, space efficiency, comfort, and modern design:
+                </p>
+                <ul className="space-y-2 text-gray-300">
+                  <li className="flex items-start gap-2">
+                    <span className="text-red-400 mt-1">•</span>
+                    <span>Workstations & cubicles</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-red-400 mt-1">•</span>
+                    <span>Executive and managerial tables</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-red-400 mt-1">•</span>
+                    <span>Reception setups & conference tables</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-red-400 mt-1">•</span>
+                    <span>Storage units & customized layouts</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-red-400 mt-1">•</span>
+                    <span>Ergonomic seating solutions</span>
+                  </li>
+                </ul>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, x: 30 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                className="p-8 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 hover:border-white/30 transition-all duration-300"
+              >
+                <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-red-600 rounded-2xl mb-6 flex items-center justify-center">
+                  <Sparkles className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="font-bold text-3xl mb-4">🏡 Complete Home Furniture</h3>
+                <p className="text-gray-300 mb-4 leading-relaxed">
+                  Full range of premium home furniture bringing style and comfort to your living spaces:
+                </p>
+                <ul className="space-y-2 text-gray-300">
+                  <li className="flex items-start gap-2">
+                    <span className="text-red-400 mt-1">•</span>
+                    <span>Bedroom sets & wardrobes</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-red-400 mt-1">•</span>
+                    <span>Modular kitchens</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-red-400 mt-1">•</span>
+                    <span>Living room furniture & sofa sets</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-red-400 mt-1">•</span>
+                    <span>Dining tables & chairs</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-red-400 mt-1">•</span>
+                    <span>TV units & customized wooden furniture</span>
+                  </li>
+                </ul>
+              </motion.div>
+            </div>
+          </div>
+        </section>
+
+        {/* Vision & Mission Section */}
+        <section className="py-20 px-4 bg-white">
+          <div className="max-w-6xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                className="p-10 rounded-2xl bg-gradient-to-br from-red-50 to-gray-100 border border-gray-200"
+              >
+                <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-red-600 rounded-2xl mb-6 flex items-center justify-center">
+                  <Target className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-3xl font-bold mb-4 text-gray-800">Our Vision</h3>
+                <p className="text-lg text-gray-700 leading-relaxed">
+                  To become India's most trusted brand for modular and wooden furniture by creating products 
+                  that combine strength, design, and functionality.
+                </p>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.1 }}
+                className="p-10 rounded-2xl bg-gradient-to-br from-gray-800 to-gray-900 text-white border border-gray-700"
+              >
+                <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-red-600 rounded-2xl mb-6 flex items-center justify-center">
+                  <Lightbulb className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-3xl font-bold mb-4">Our Mission</h3>
+                <p className="text-lg text-gray-300 leading-relaxed">
+                  To deliver stylish, durable, and affordable furniture that enhances the spaces where people 
+                  live and work—crafted with integrity and built to last.
+                </p>
+              </motion.div>
             </div>
           </div>
         </section>

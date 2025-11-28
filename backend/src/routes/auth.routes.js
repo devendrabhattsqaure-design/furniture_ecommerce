@@ -31,17 +31,17 @@ const loginValidation = [
   body('password').notEmpty().withMessage('Password is required')
 ];
 
-// Public routes
+
 router.post('/register', registerValidation, register);
 router.post('/login', loginValidation, login);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password/:token', resetPassword);
 
-// Protected routes
+
 router.get('/me', protect, getMe);
 router.post('/logout', protect, logout);
 
-// Admin-only routes for user management
+
 router.post('/admin/register', protect, authorize('admin'), adminRegisterValidation, registerAdmin);
 
 module.exports = router;

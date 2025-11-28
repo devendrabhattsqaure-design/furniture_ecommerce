@@ -1,3 +1,4 @@
+// admin-panel/src/layouts/dashboard.jsx
 import { Routes, Route } from "react-router-dom";
 import { Cog6ToothIcon } from "@heroicons/react/24/solid";
 import { IconButton } from "@material-tailwind/react";

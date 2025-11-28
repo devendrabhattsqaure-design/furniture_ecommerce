@@ -7,7 +7,8 @@ const {
   uploadProfileImage,
   getAllUsers,
   updateUser,
-  deleteUser
+  deleteUser,
+  setUserSalary  // Add this import
 } = require('../controllers/user.controller');
 const { protect, authorize } = require('../middlewares/auth.middleware');
 const { uploadProfile } = require('../config/cloudinary');
@@ -18,9 +19,10 @@ router.put('/profile', protect, updateProfile);
 router.put('/change-password', protect, changePassword);
 router.post('/upload-profile-image', protect, uploadProfile.single('image'), uploadProfileImage);
 
-
+// Admin only routes
 router.get('/', protect, authorize('admin'), getAllUsers);
 router.put('/:id', protect, authorize('admin'), uploadProfile.single('image'), updateUser);
+router.put('/:id/salary', protect, authorize('admin'), setUserSalary);  // This route should work now
 router.delete('/:id', protect, authorize('admin'), deleteUser);
 
 module.exports = router;

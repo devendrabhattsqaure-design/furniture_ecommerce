@@ -1,3 +1,4 @@
+// admin-panel/src/layouts/auth.jsx
 import { Routes, Route } from "react-router-dom";
 import {
   ChartPieIcon,

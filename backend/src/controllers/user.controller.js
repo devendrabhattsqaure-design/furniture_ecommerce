@@ -6,14 +6,12 @@ const asyncHandler = require('express-async-handler');
 // @route   GET /api/users/profile
 exports.getProfile = asyncHandler(async (req, res) => {
   const [users] = await db.query(
-    'SELECT user_id, email, full_name, phone, date_of_birth, gender, profile_image, role, status, email_verified, created_at FROM users WHERE user_id = ?',
+    'SELECT user_id, email, full_name, phone, date_of_birth, gender, profile_image, role, status, email_verified, created_at, base_salary FROM users WHERE user_id = ?',
     [req.user.id]
   );
 
   res.json({ success: true, user: users[0] });
 });
-
-
 
 // @desc    Change password
 // @route   PUT /api/users/change-password
@@ -57,7 +55,7 @@ exports.uploadProfileImage = asyncHandler(async (req, res) => {
 // @route   GET /api/users
 exports.getAllUsers = asyncHandler(async (req, res) => {
   const [users] = await db.query(
-    'SELECT user_id, email, full_name, phone, role,profile_image, status, email_verified,gender, date_of_birth, created_at FROM users ORDER BY created_at DESC'
+    'SELECT user_id, email, full_name, phone, role, profile_image, status, email_verified, gender, date_of_birth, created_at, base_salary FROM users ORDER BY created_at DESC'
   );
 
   res.json({ success: true, count: users.length, users });
@@ -135,7 +133,7 @@ exports.updateUser = asyncHandler(async (req, res) => {
     // Get updated user
     const [users] = await db.query(
       `SELECT user_id, email, full_name, phone, date_of_birth, gender, 
-              profile_image, role, status, created_at 
+              profile_image, role, status, created_at, base_salary 
        FROM users WHERE user_id = ?`,
       [id]
     );
@@ -154,6 +152,47 @@ exports.updateUser = asyncHandler(async (req, res) => {
     });
   }
 });
+
+// @desc    Set user base salary (Admin only)
+// @route   PUT /api/users/:id/salary
+exports.setUserSalary = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { base_salary } = req.body;
+
+  if (!base_salary || base_salary < 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'Valid base salary is required'
+    });
+  }
+
+  // Check if user exists
+  const [existingUsers] = await db.query('SELECT * FROM users WHERE user_id = ?', [id]);
+  if (existingUsers.length === 0) {
+    return res.status(404).json({
+      success: false,
+      message: 'User not found'
+    });
+  }
+
+  await db.query(
+    'UPDATE users SET base_salary = ?, updated_at = NOW() WHERE user_id = ?',
+    [base_salary, id]
+  );
+
+  // Get updated user
+  const [users] = await db.query(
+    'SELECT user_id, full_name, email, base_salary FROM users WHERE user_id = ?',
+    [id]
+  );
+
+  res.json({
+    success: true,
+    message: 'Base salary updated successfully',
+    user: users[0]
+  });
+});
+
 // @desc    Update user profile (for own profile)
 // @route   PUT /api/users/profile
 exports.updateProfile = asyncHandler(async (req, res) => {
@@ -192,7 +231,7 @@ exports.updateProfile = asyncHandler(async (req, res) => {
     await db.query(query, params);
 
     const [users] = await db.query(
-      'SELECT user_id, email, full_name, phone, date_of_birth, gender, profile_image, role, status FROM users WHERE user_id = ?',
+      'SELECT user_id, email, full_name, phone, date_of_birth, gender, profile_image, role, status, base_salary FROM users WHERE user_id = ?',
       [req.user.id]
     );
 
@@ -210,6 +249,7 @@ exports.updateProfile = asyncHandler(async (req, res) => {
     });
   }
 });
+
 // @desc    Delete user (Admin only)
 // @route   DELETE /api/users/:id
 exports.deleteUser = asyncHandler(async (req, res) => {

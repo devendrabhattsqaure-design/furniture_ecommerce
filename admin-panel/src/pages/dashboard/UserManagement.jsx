@@ -1,16 +1,21 @@
 // admin-panel/src/pages/dashboard/UserManagement.jsx
 import React, { useState, useEffect } from "react";
-import { Users, Edit2, Trash2, X, Plus, Upload, Loader2 } from "lucide-react";
+import { Users, Edit2, Trash2, X, Plus, Upload, Loader2, Eye, Calendar } from "lucide-react";
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-
+import { DollarSign } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [userAttendance, setUserAttendance] = useState([]);
   const [previewImage, setPreviewImage] = useState(null);
   const [loading, setLoading] = useState(false);
   const [fetchingUsers, setFetchingUsers] = useState(true);
+  const [fetchingAttendance, setFetchingAttendance] = useState(false);
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
@@ -21,6 +26,7 @@ const UserManagement = () => {
     status: "active",
     profile_image: null
   });
+  const navigate = useNavigate();
 
   const API_BASE_URL = "http://localhost:5000/api";
 
@@ -50,6 +56,37 @@ const UserManagement = () => {
       toast.error("Error loading users");
     } finally {
       setFetchingUsers(false);
+    }
+  };
+
+  const fetchUserAttendance = async (userId) => {
+    try {
+      setFetchingAttendance(true);
+      const token = localStorage.getItem('token');
+      const currentDate = new Date();
+      const month = currentDate.getMonth() + 1;
+      const year = currentDate.getFullYear();
+
+      const response = await fetch(
+        `${API_BASE_URL}/attendance/my-attendance?user_id=${userId}&month=${month}&year=${year}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        setUserAttendance(data.attendance || []);
+      } else {
+        toast.error("Failed to fetch attendance");
+      }
+    } catch (error) {
+      console.error('Error fetching attendance:', error);
+      toast.error("Error loading attendance");
+    } finally {
+      setFetchingAttendance(false);
     }
   };
 
@@ -121,9 +158,49 @@ const UserManagement = () => {
     setIsModalOpen(true);
   };
 
+  const openDetailModal = async (user) => {
+   
+  navigate(`/dashboard/users/${user.user_id}`);
+  };
+
   const closeModal = () => {
     setIsModalOpen(false);
     resetForm();
+  };
+
+  const setUserSalary = async (userId, currentSalary) => {
+  const newSalary = prompt('Enter base salary:', currentSalary || '0');
+  
+  if (newSalary && !isNaN(newSalary)) {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/users/${userId}/salary`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ base_salary: parseFloat(newSalary) })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success("Salary updated successfully");
+        fetchUsers();
+      } else {
+        toast.error(data.message || "Failed to update salary");
+      }
+    } catch (error) {
+      console.error('Error updating salary:', error);
+      toast.error("Network error. Please try again.");
+    }
+  }
+};
+  const closeDetailModal = () => {
+    setIsDetailModalOpen(false);
+    setSelectedUser(null);
+    setUserAttendance([]);
   };
 
   const validateForm = () => {
@@ -284,6 +361,151 @@ const UserManagement = () => {
     }
   };
 
+  // Calendar component for attendance
+  const AttendanceCalendar = ({ attendance }) => {
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth();
+    const currentYear = currentDate.getFullYear();
+    
+    const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
+    const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0);
+    const startingDayOfWeek = firstDayOfMonth.getDay();
+    
+    const daysInMonth = lastDayOfMonth.getDate();
+    const days = [];
+
+    // Create attendance map for quick lookup
+    const attendanceMap = {};
+    attendance.forEach(record => {
+      const date = new Date(record.attendance_date).getDate();
+      attendanceMap[date] = record.status;
+    });
+
+    // Add empty cells for days before the first day of month
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      days.push(null);
+    }
+
+    // Add days of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+      days.push(day);
+    }
+
+    const getStatusColor = (status) => {
+      switch (status) {
+        case 'present': return 'bg-green-500';
+        case 'absent': return 'bg-red-500';
+        case 'half_day': return 'bg-yellow-500';
+        case 'late': return 'bg-orange-500';
+        case 'holiday': return 'bg-blue-500';
+        default: return 'bg-gray-200';
+      }
+    };
+
+    const getStatusTooltip = (status) => {
+      switch (status) {
+        case 'present': return 'Present';
+        case 'absent': return 'Absent';
+        case 'half_day': return 'Half Day';
+        case 'late': return 'Late';
+        case 'holiday': return 'Holiday';
+        default: return 'No Record';
+      }
+    };
+
+    return (
+      <div className="bg-white rounded-lg border p-4">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-800">
+            {firstDayOfMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
+          </h3>
+          <Calendar className="w-5 h-5 text-gray-600" />
+        </div>
+        
+        <div className="grid grid-cols-7 gap-1 mb-2">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+            <div key={day} className="text-center text-xs font-medium text-gray-500 py-1">
+              {day}
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7 gap-1">
+          {days.map((day, index) => (
+            <div
+              key={index}
+              className={`h-8 rounded flex items-center justify-center text-sm relative ${
+                day ? 'border border-gray-200' : ''
+              } ${
+                day === currentDate.getDate() ? 'ring-2 ring-blue-500 ring-inset' : ''
+              }`}
+            >
+              {day && (
+                <>
+                  <span className={`${attendanceMap[day] ? 'text-white font-medium' : 'text-gray-700'}`}>
+                    {day}
+                  </span>
+                  {attendanceMap[day] && (
+                    <div
+                      className={`absolute inset-0 rounded ${getStatusColor(attendanceMap[day])} opacity-80`}
+                      title={getStatusTooltip(attendanceMap[day])}
+                    ></div>
+                  )}
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Legend */}
+        <div className="mt-4 flex flex-wrap gap-2 justify-center">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-green-500 rounded"></div>
+            <span className="text-xs text-gray-600">Present</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-red-500 rounded"></div>
+            <span className="text-xs text-gray-600">Absent</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-yellow-500 rounded"></div>
+            <span className="text-xs text-gray-600">Half Day</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-orange-500 rounded"></div>
+            <span className="text-xs text-gray-600">Late</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-blue-500 rounded"></div>
+            <span className="text-xs text-gray-600">Holiday</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Calculate attendance summary
+  const calculateAttendanceSummary = () => {
+    const summary = {
+      present: 0,
+      absent: 0,
+      half_day: 0,
+      late: 0,
+      holiday: 0,
+      total: userAttendance.length
+    };
+
+    userAttendance.forEach(record => {
+      if (summary.hasOwnProperty(record.status)) {
+        summary[record.status]++;
+      }
+    });
+
+    return summary;
+  };
+
+  const attendanceSummary = calculateAttendanceSummary();
+
   return (
     <div className="min-h-screen bg-gray-50 py-6">
       {/* Toast Container */}
@@ -301,17 +523,18 @@ const UserManagement = () => {
       />
 
       {/* Stats Card */}
-     <div className="mb-8 grid gap-y-10 gap-x-6 md:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-8 grid gap-y-10 gap-x-6 md:grid-cols-2 xl:grid-cols-4">
         <div className="relative flex flex-col bg-clip-border rounded-xl bg-white text-gray-700 shadow-md">
           <div className="bg-clip-border mx-4 rounded-xl overflow-hidden bg-gradient-to-tr from-blue-600 to-blue-400 text-white shadow-green-500/40 shadow-lg absolute -mt-4 grid h-16 w-16 place-items-center">
             <Users className="w-6 h-6 text-white" />
           </div>
-         <div className="p-6 text-right">
-      <p className="text-sm text-gray-600 font-medium">Total Users</p>
-      <h4 className="text-3xl font-bold text-gray-900">{users.length}</h4>
-    </div>
+          <div className="p-6 text-right">
+            <p className="text-sm text-gray-600 font-medium">Total Users</p>
+            <h4 className="text-3xl font-bold text-gray-900">{users.length}</h4>
+          </div>
         </div>
       </div>
+
       {/* User Management Table */}
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="p-6 border-b border-gray-200 flex justify-between items-center">
@@ -382,18 +605,36 @@ const UserManagement = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <button
-                        onClick={() => openModal(user)}
-                        className="text-blue-600 hover:text-blue-800 mr-4 transition-colors"
-                      >
-                        <Edit2 className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(user.user_id)}
-                        className="text-red-600 hover:text-red-800 transition-colors"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => openDetailModal(user)}
+                          className="text-green-600 hover:text-green-800 transition-colors"
+                          title="View Details"
+                        >
+                          <Eye className="w-5 h-5" />
+                        </button>
+                        <button
+  onClick={() => setUserSalary(user.user_id, user.base_salary)}
+  className="text-green-600 hover:text-green-800 transition-colors"
+  title="Set Salary"
+>
+  <DollarSign className="w-5 h-5" />
+</button>
+                        <button
+                          onClick={() => openModal(user)}
+                          className="text-blue-600 hover:text-blue-800 transition-colors"
+                          title="Edit User"
+                        >
+                          <Edit2 className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(user.user_id)}
+                          className="text-red-600 hover:text-red-800 transition-colors"
+                          title="Delete User"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -403,7 +644,7 @@ const UserManagement = () => {
         )}
       </div>
 
-      {/* Modal */}
+      {/* Add/Edit User Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -585,6 +826,8 @@ const UserManagement = () => {
           </div>
         </div>
       )}
+
+      
     </div>
   );
 };
