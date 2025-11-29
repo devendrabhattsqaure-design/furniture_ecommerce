@@ -19,7 +19,8 @@ import { Home, Profile, Tables, Notifications } from "@/pages/dashboard";
 import { SignIn, SignUp } from "@/pages/auth";
 
 // Import all management components
-import UserManagement from "@/pages/dashboard/UserManagement";``
+import UserManagement from "@/pages/dashboard/UserManagement";
+import BillingManagement from "@/pages/dashboard/BillingManagement";
 import AttendanceManagement from "./pages/dashboard/AttendanceManagement";
 import ProductManagement from "@/pages/dashboard/ProductManagement";
 import BlogManagement from "@/pages/dashboard/BlogManagement";
@@ -127,13 +128,19 @@ const adminPages = [
     path: "/attendance",
     element: <AttendanceManagement />,
   },
+ // In your navigation configuration
+{
+  icon: <CalendarDaysIcon className="w-5 h-5" />,
+  name: "Billing Management",
+  path: "/billing-management",
+  element: <BillingManagement />,
+}
 ];
 
-// User details page (hidden from sidebar)
 const userDetailsPage = {
   icon: <EyeIcon {...icon} />,
   name: "user details",
-  path: "/users/:userId", // Changed from "/dashboard/users/:userId" to "/users/:userId"
+  path: "/users/:userId", 
   element: <UserDetailsPage />,
   hideFromSidebar: true,
 };
