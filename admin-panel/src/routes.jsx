@@ -19,7 +19,7 @@ import { Home, Profile, Tables, Notifications } from "@/pages/dashboard";
 import { SignIn, SignUp } from "@/pages/auth";
 
 // Import all management components
-import UserManagement from "@/pages/dashboard/UserManagement";
+import UserManagement from "@/pages/dashboard/UserManagement";``
 import AttendanceManagement from "./pages/dashboard/AttendanceManagement";
 import ProductManagement from "@/pages/dashboard/ProductManagement";
 import BlogManagement from "@/pages/dashboard/BlogManagement";
@@ -80,12 +80,7 @@ const baseDashboardPages = [
     path: "/category",
     element: <CategoryManagement />,
   },
-  {
-    icon: <CalendarDaysIcon {...icon} />,
-    name: "Attendance",
-    path: "/attendance",
-    element: <AttendanceManagement />,
-  },
+  
   {
     icon: <CubeIcon {...icon} />,
     name: "product management",
@@ -125,6 +120,12 @@ const adminPages = [
     name: "order management",
     path: "/order-management",
     element: <OrderManagement />,
+  },
+  {
+    icon: <CalendarDaysIcon {...icon} />,
+    name: "Attendance",
+    path: "/attendance",
+    element: <AttendanceManagement />,
   },
 ];
 

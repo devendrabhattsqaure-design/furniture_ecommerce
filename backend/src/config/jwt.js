@@ -17,7 +17,7 @@ exports.sendTokenResponse = (user, statusCode, res) => {
   });
 
   const options = {
-   expires: new Date(Date.now() + 8 * 60 * 60 * 1000), // 8 hour
+   expires: new Date(Date.now() + 4 * 60 * 60 * 1000), 
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict'

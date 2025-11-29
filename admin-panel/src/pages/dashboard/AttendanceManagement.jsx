@@ -1,13 +1,12 @@
 // admin-panel/src/pages/dashboard/AttendanceManagement.jsx
 import React, { useState, useEffect } from "react";
-import { Calendar, Users, CheckCircle, XCircle, Clock, Sun, Ban, Plus, X, Loader2, Filter, Download } from "lucide-react";
+import { Calendar, Users, CheckCircle, XCircle, Clock, Sun, Ban, X, Loader2, Filter, Download } from "lucide-react";
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 const AttendanceManagement = () => {
   const [attendance, setAttendance] = useState([]);
   const [users, setUsers] = useState([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -17,14 +16,6 @@ const AttendanceManagement = () => {
     month: new Date().getMonth() + 1,
     year: new Date().getFullYear(),
     status: ''
-  });
-
-  const [formData, setFormData] = useState({
-    user_id: "",
-    attendance_date: new Date().toISOString().split('T')[0],
-    status: "present",
-    work_hours: 8.00,
-    notes: ""
   });
 
   const [bulkFormData, setBulkFormData] = useState({
@@ -38,8 +29,7 @@ const AttendanceManagement = () => {
     { value: 'present', label: 'Present', color: 'bg-green-100 text-green-800', icon: CheckCircle },
     { value: 'absent', label: 'Absent', color: 'bg-red-100 text-red-800', icon: XCircle },
     { value: 'half_day', label: 'Half Day', color: 'bg-yellow-100 text-yellow-800', icon: Clock },
-    { value: 'late', label: 'Late', color: 'bg-orange-100 text-orange-800', icon: Clock },
-    { value: 'holiday', label: 'Holiday', color: 'bg-blue-100 text-blue-800', icon: Sun }
+
   ];
 
   // Fetch data on component mount
@@ -123,32 +113,6 @@ const AttendanceManagement = () => {
     return null;
   };
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-
-    // Auto-set work hours based on status
-    if (name === 'status') {
-      let workHours = 8.00;
-      switch (value) {
-        case 'present':
-          workHours = 8.00;
-          break;
-        case 'half_day':
-          workHours = 4.00;
-          break;
-        case 'late':
-          workHours = 7.00;
-          break;
-        case 'absent':
-        case 'holiday':
-          workHours = 0.00;
-          break;
-      }
-      setFormData(prev => ({ ...prev, work_hours: workHours }));
-    }
-  };
-
   const handleBulkInputChange = (e) => {
     const { name, value } = e.target;
     setBulkFormData(prev => ({ ...prev, [name]: value }));
@@ -165,7 +129,28 @@ const AttendanceManagement = () => {
         user_id: userId,
         status: status,
         work_hours: getDefaultWorkHours(status),
-        notes: ""
+        notes: "",
+        sales_amount: ""
+      });
+    }
+    
+    setBulkFormData(prev => ({ ...prev, attendances: updatedAttendances }));
+  };
+
+  const handleUserSalesChange = (userId, salesAmount) => {
+    const updatedAttendances = [...bulkFormData.attendances];
+    const existingIndex = updatedAttendances.findIndex(att => att.user_id === userId);
+    
+    if (existingIndex >= 0) {
+      updatedAttendances[existingIndex].sales_amount = salesAmount;
+    } else {
+      // If no attendance record exists yet, create one with default present status
+      updatedAttendances.push({
+        user_id: userId,
+        status: 'present',
+        work_hours: 8.00,
+        notes: "",
+        sales_amount: salesAmount
       });
     }
     
@@ -188,14 +173,9 @@ const AttendanceManagement = () => {
     return userAttendance ? userAttendance.status : '';
   };
 
-  const resetForm = () => {
-    setFormData({
-      user_id: "",
-      attendance_date: new Date().toISOString().split('T')[0],
-      status: "present",
-      work_hours: 8.00,
-      notes: ""
-    });
+  const getUserSalesAmount = (userId) => {
+    const userAttendance = bulkFormData.attendances.find(att => att.user_id === userId);
+    return userAttendance ? userAttendance.sales_amount : '';
   };
 
   const resetBulkForm = () => {
@@ -205,41 +185,15 @@ const AttendanceManagement = () => {
     });
   };
 
-  const openModal = () => {
-    resetForm();
-    setIsModalOpen(true);
-  };
-
   const openBulkModal = () => {
     resetBulkForm();
     setBulkFormData(prev => ({ ...prev, attendance_date: selectedDate }));
     setIsBulkModalOpen(true);
   };
 
-  const closeModal = () => {
-    setIsModalOpen(false);
-    resetForm();
-  };
-
   const closeBulkModal = () => {
     setIsBulkModalOpen(false);
     resetBulkForm();
-  };
-
-  const validateForm = () => {
-    if (!formData.user_id) {
-      toast.error("Please select a user");
-      return false;
-    }
-    if (!formData.attendance_date) {
-      toast.error("Please select a date");
-      return false;
-    }
-    if (!formData.status) {
-      toast.error("Please select a status");
-      return false;
-    }
-    return true;
   };
 
   const validateBulkForm = () => {
@@ -252,41 +206,6 @@ const AttendanceManagement = () => {
       return false;
     }
     return true;
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!validateForm()) return;
-
-    setLoading(true);
-
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/attendance/mark`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        toast.success("Attendance marked successfully");
-        closeModal();
-        fetchAttendance();
-      } else {
-        toast.error(data.message || "Failed to mark attendance");
-      }
-    } catch (error) {
-      console.error('Error marking attendance:', error);
-      toast.error("Network error. Please try again.");
-    } finally {
-      setLoading(false);
-    }
   };
 
   const handleBulkSubmit = async (e) => {
@@ -521,13 +440,6 @@ const AttendanceManagement = () => {
               className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
             >
               <Users className="w-5 h-5" />
-              Bulk Mark
-            </button>
-            <button
-              onClick={openModal}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-            >
-              <Plus className="w-5 h-5" />
               Mark Attendance
             </button>
           </div>
@@ -553,212 +465,80 @@ const AttendanceManagement = () => {
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">User</th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Work Hours</th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Notes</th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Marked By</th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {attendance.map((record) => (
-                  <tr key={record.attendance_id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center mr-3">
-                          <span className="text-blue-600 font-semibold text-sm">
-                            {record.full_name?.charAt(0)}
-                          </span>
-                        </div>
-                        <div>
-                          <div className="font-medium text-gray-900">{record.full_name}</div>
-                          <div className="text-sm text-gray-500">{record.email}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-700">
-                      {new Date(record.attendance_date).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(record.status)}`}>
-                        {getStatusIcon(record.status)}
-                        {statusOptions.find(s => s.value === record.status)?.label || record.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-700">
-                      {record.work_hours} hours
-                    </td>
-                    <td className="px-6 py-4 text-gray-700 max-w-xs truncate">
-                      {record.notes || "-"}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-700">
-                      {record.marked_by_name || "System"}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <button
-                        onClick={() => handleDelete(record.attendance_id)}
-                        className="text-red-600 hover:text-red-800 transition-colors"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+          
+<thead className="bg-gray-50">
+  <tr>
+    <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">User</th>
+    <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Date</th>
+    <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Status</th>
+    <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Work Hours</th>
+    <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Sales Amount</th>
+    <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Notes</th>
+    <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Marked By</th>
+    <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Actions</th>
+  </tr>
+</thead>
+
+
+<tbody className="bg-white divide-y divide-gray-200">
+  {attendance.map((record) => (
+    <tr key={record.attendance_id} className="hover:bg-gray-50 transition-colors">
+      <td className="px-6 py-4 whitespace-nowrap">
+        <div className="flex items-center">
+          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center mr-3">
+            <span className="text-blue-600 font-semibold text-sm">
+              {record.full_name?.charAt(0)}
+            </span>
+          </div>
+          <div>
+            <div className="font-medium text-gray-900">{record.full_name}</div>
+            <div className="text-sm text-gray-500">{record.email}</div>
+          </div>
+        </div>
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-gray-700">
+        {new Date(record.attendance_date).toLocaleDateString()}
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap">
+        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(record.status)}`}>
+          {getStatusIcon(record.status)}
+          {statusOptions.find(s => s.value === record.status)?.label || record.status}
+        </span>
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-gray-700">
+        {record.work_hours} hours
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-gray-700 font-medium">
+        {record.sales_amount ? `₹${parseFloat(record.sales_amount).toLocaleString()}` : "-"}
+      </td>
+      <td className="px-6 py-4 text-gray-700 max-w-xs truncate">
+        {record.notes || "-"}
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-gray-700">
+        {record.marked_by_name || "System"}
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap">
+        <button
+          onClick={() => handleDelete(record.attendance_id)}
+          className="text-red-600 hover:text-red-800 transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </td>
+    </tr>
+  ))}
+</tbody>
             </table>
           </div>
         )}
       </div>
 
-      {/* Single Attendance Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-              <h3 className="text-xl font-bold text-gray-800">Mark Attendance</h3>
-              <button onClick={closeModal} className="text-gray-500 hover:text-gray-700">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="p-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    User <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    name="user_id"
-                    value={formData.user_id}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  >
-                    <option value="">Select User</option>
-                    {users.map(user => (
-                      <option key={user.user_id} value={user.user_id}>
-                        {user.full_name} ({user.email})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Date <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    name="attendance_date"
-                    value={formData.attendance_date}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Status <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    name="status"
-                    value={formData.status}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  >
-                    {statusOptions.map(status => (
-                      <option key={status.value} value={status.value}>
-                        {status.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                
-
-<div>
-  <label className="block text-sm font-semibold text-gray-700 mb-2">
-    Sales Amount (₹)
-  </label>
-  <input
-    type="number"
-    name="sales_amount"
-    value={formData.sales_amount || ''}
-    onChange={handleInputChange}
-    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-    placeholder="Enter sales amount for today"
-    min="0"
-    step="0.01"
-  />
-  <p className="text-xs text-gray-500 mt-1">
-    Incentive: 2% on sales above ₹10,000
-  </p>
-</div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Work Hours
-                  </label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    max="24"
-                    name="work_hours"
-                    value={formData.work_hours}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Notes
-                  </label>
-                  <textarea
-                    name="notes"
-                    value={formData.notes}
-                    onChange={handleInputChange}
-                    rows="3"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Optional notes..."
-                  />
-                </div>
-              </div>
-
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  disabled={loading}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                  Mark Attendance
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* Bulk Attendance Modal */}
       {isBulkModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white z-10">
-              <h3 className="text-xl font-bold text-gray-800">Bulk Mark Attendance</h3>
+              <h3 className="text-xl font-bold text-gray-800"> Mark Attendance</h3>
               <button onClick={closeBulkModal} className="text-gray-500 hover:text-gray-700">
                 <X className="w-6 h-6" />
               </button>
@@ -786,6 +566,7 @@ const AttendanceManagement = () => {
                       <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">User</th>
                       <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Current Status</th>
                       <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Mark Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Sales Amount (₹)</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -835,6 +616,18 @@ const AttendanceManagement = () => {
                               </button>
                             ))}
                           </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <input
+                            type="number"
+                            placeholder="Enter sales amount"
+                            value={getUserSalesAmount(user.user_id)}
+                            onChange={(e) => handleUserSalesChange(user.user_id, e.target.value)}
+                            className="w-32 px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                            min="0"
+                            
+                          />
+                          
                         </td>
                       </tr>
                     ))}

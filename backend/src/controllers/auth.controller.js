@@ -1,3 +1,4 @@
+// backend/src/controllers/auth.controller.js
 const db = require('../config/database');
 const bcrypt = require('bcryptjs');
 const { sendTokenResponse } = require('../config/jwt');
@@ -5,76 +6,89 @@ const asyncHandler = require('express-async-handler');
 const { validationResult } = require('express-validator');
 
 
-
-
-// @desc    Register user by admin (no password required, auto-generate)
+// @desc    Create a new user
 // @route   POST /api/auth/admin/register
 exports.registerAdmin = asyncHandler(async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Validation failed',
-      errors: errors.array() 
-    });
-  }
+  const { 
+    full_name, 
+    email, 
+    phone, 
+    role = 'employee',
+    date_of_birth, 
+    gender,
+    base_salary,
+    target_amount,
+    incentive_percentage
+  } = req.body;
 
-  const { email, full_name, phone, date_of_birth, gender, role } = req.body;
-
-  // Debug logging
-  console.log('Received data:', { email, full_name, phone, date_of_birth, gender, role });
-  console.log('File received:', req.file);
-
-  // Check if user exists
-  const [existingUsers] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
-  if (existingUsers.length > 0) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Email already registered' 
-    });
-  }
-
-  // Auto-generate password: name@12345
-  const generatedPassword = `${full_name.toLowerCase().replace(/\s+/g, '')}@12345`;
-  
-  // Hash password
-  const salt = await bcrypt.genSalt(parseInt(process.env.BCRYPT_SALT_ROUNDS));
-  const password_hash = await bcrypt.hash(generatedPassword, salt);
-
-  // Handle profile image upload
-  let profile_image = null;
-  if (req.file) {
-    profile_image = req.file.path;
-  }
-
-  // Create user
-  try {
-    const [result] = await db.query(
-      'INSERT INTO users (email, password_hash, full_name, phone, date_of_birth, gender, role, profile_image, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [email, password_hash, full_name, phone, date_of_birth || null, gender || null, role, profile_image, 'active']
-    );
-
-    // Get created user (without password)
-    const [users] = await db.query(
-      'SELECT user_id, email, full_name, phone, date_of_birth, gender, profile_image, role, status, email_verified, created_at FROM users WHERE user_id = ?',
-      [result.insertId]
-    );
-
-    res.status(201).json({
-      success: true,
-      message: 'User created successfully',
-      user: users[0],
-      generatedPassword: generatedPassword // Send back for admin reference
-    });
-  } catch (error) {
-    console.error('Database error:', error);
-    return res.status(500).json({
+  // Validation
+  if (!full_name || !email || !phone || !role) {
+    return res.status(400).json({
       success: false,
-      message: 'Database error occurred'
+      message: 'Full name, email, phone, and role are required'
     });
   }
-});
 
+  // Check if user already exists
+  const [existingUsers] = await db.query('SELECT user_id FROM users WHERE email = ?', [email]);
+  if (existingUsers.length > 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'User with this email already exists'
+    });
+  }
+
+  // Generate default password (name@12345)
+  const defaultPassword = `${full_name.split(' ')[0].toLowerCase()}@12345`;
+  const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
+  // Calculate incentive amount
+  const incentiveAmount = target_amount && incentive_percentage ? 
+    (parseFloat(target_amount) * parseFloat(incentive_percentage)) / 100 : 0;
+
+  // Handle profile image
+  let profileImage = null;
+  if (req.file) {
+    profileImage = req.file.path; // Cloudinary URL or file path
+  }
+
+  // Insert user with target and incentive
+  const [result] = await db.query(
+    `INSERT INTO users (full_name, email, password_hash, phone, role, date_of_birth, gender, 
+     base_salary, target_amount, incentive_percentage, incentive_amount, profile_image) 
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      full_name, 
+      email, 
+      hashedPassword, 
+      phone, 
+      role, 
+      date_of_birth || null, 
+      gender || null,
+      parseFloat(base_salary) || 0,
+      parseFloat(target_amount) || 0,
+      parseFloat(incentive_percentage) || 0,
+      incentiveAmount,
+      profileImage
+    ]
+  );
+
+  // Get the created user
+  const [users] = await db.query(
+    `SELECT user_id, email, full_name, phone, role, status, profile_image,
+            base_salary, target_amount, incentive_percentage, incentive_amount,
+            created_at 
+     FROM users WHERE user_id = ?`,
+    [result.insertId]
+  );
+
+  res.status(201).json({
+    success: true,
+    message: 'User created successfully',
+    user: users[0],
+    defaultPassword: defaultPassword
+  });
+});
 
 
 // @desc    Register user

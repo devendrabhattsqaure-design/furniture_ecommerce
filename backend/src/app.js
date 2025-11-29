@@ -42,6 +42,8 @@ app.use('/api/admin', require('./routes/admin.routes'));
 app.use('/api/wishlist', require('./routes/wishlist.routes'));
 app.use('/api/attendance', require('./routes/attendance.routes'));
 
+app.use('/api/user-targets', require('./routes/target.routes'));
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'API is running' });

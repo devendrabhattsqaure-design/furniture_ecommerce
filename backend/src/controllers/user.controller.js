@@ -1,7 +1,92 @@
+// backend/src/controllers/user.controller.js
 const db = require('../config/database');
 const bcrypt = require('bcryptjs');
 const asyncHandler = require('express-async-handler');
 
+
+// @desc    Create a new user
+// @route   POST /api/auth/admin/register
+exports.createUser = asyncHandler(async (req, res) => {
+  const { 
+    full_name, 
+    email, 
+    phone, 
+    role, 
+    date_of_birth, 
+    gender,
+    base_salary,
+    target_amount,
+    incentive_percentage
+  } = req.body;
+
+  // Validation
+  if (!full_name || !email || !phone || !role) {
+    return res.status(400).json({
+      success: false,
+      message: 'Full name, email, phone, and role are required'
+    });
+  }
+
+  // Check if user already exists
+  const [existingUsers] = await db.query('SELECT user_id FROM users WHERE email = ?', [email]);
+  if (existingUsers.length > 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'User with this email already exists'
+    });
+  }
+
+  // Generate default password (name@12345)
+  const defaultPassword = `${full_name.split(' ')[0].toLowerCase()}@12345`;
+  const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
+  // Calculate incentive amount
+  const incentiveAmount = target_amount && incentive_percentage ? 
+    (parseFloat(target_amount) * parseFloat(incentive_percentage)) / 100 : 0;
+
+  // Handle profile image
+  let profileImage = null;
+  if (req.file) {
+    profileImage = req.file.path; // Cloudinary URL or file path
+  }
+
+  // Insert user with target and incentive
+  const [result] = await db.query(
+    `INSERT INTO users (full_name, email, password_hash, phone, role, date_of_birth, gender, 
+     base_salary, target_amount, incentive_percentage, incentive_amount, profile_image) 
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      full_name, 
+      email, 
+      hashedPassword, 
+      phone, 
+      role, 
+      date_of_birth || null, 
+      gender || null,
+      parseFloat(base_salary) || 0,
+      parseFloat(target_amount) || 0,
+      parseFloat(incentive_percentage) || 0,
+      incentiveAmount,
+      profileImage
+    ]
+  );
+
+  // Get the created user
+  const [users] = await db.query(
+    `SELECT user_id, email, full_name, phone, role, status, profile_image,
+            base_salary, target_amount, incentive_percentage, incentive_amount,
+            created_at 
+     FROM users WHERE user_id = ?`,
+    [result.insertId]
+  );
+
+  res.status(201).json({
+    success: true,
+    message: 'User created successfully',
+    user: users[0],
+    defaultPassword: defaultPassword
+  });
+});
 // @desc    Get user profile
 // @route   GET /api/users/profile
 exports.getProfile = asyncHandler(async (req, res) => {
@@ -55,104 +140,88 @@ exports.uploadProfileImage = asyncHandler(async (req, res) => {
 // @route   GET /api/users
 exports.getAllUsers = asyncHandler(async (req, res) => {
   const [users] = await db.query(
-    'SELECT user_id, email, full_name, phone, role, profile_image, status, email_verified, gender, date_of_birth, created_at, base_salary FROM users ORDER BY created_at DESC'
+    'SELECT user_id, email, full_name, phone, role, profile_image, status, email_verified, gender, date_of_birth, created_at, base_salary, target_amount, incentive_percentage, incentive_amount FROM users ORDER BY created_at DESC'
   );
 
   res.json({ success: true, count: users.length, users });
 });
 
-// @desc    Update user (Admin only)
+// @desc    Update user
 // @route   PUT /api/users/:id
 exports.updateUser = asyncHandler(async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    // Check if user exists
-    const [existingUsers] = await db.query('SELECT * FROM users WHERE user_id = ?', [id]);
-    if (existingUsers.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'User not found' 
-      });
-    }
+  const { id } = req.params;
+  const { 
+    full_name, 
+    email, 
+    phone, 
+    role, 
+    status, 
+    date_of_birth, 
+    gender,
+    base_salary,
+    target_amount,
+    incentive_percentage
+  } = req.body;
 
-    // Get data from request body (FormData)
-    const { 
+  // Check if user exists
+  const [existingUsers] = await db.query('SELECT * FROM users WHERE user_id = ?', [id]);
+  if (existingUsers.length === 0) {
+    return res.status(404).json({
+      success: false,
+      message: 'User not found'
+    });
+  }
+
+  // Calculate incentive amount
+  const incentiveAmount = target_amount && incentive_percentage ? 
+    (parseFloat(target_amount) * parseFloat(incentive_percentage)) / 100 : 0;
+
+  // Handle profile image upload
+  let profileImage = existingUsers[0].profile_image;
+  if (req.file) {
+    profileImage = req.file.path; // Cloudinary URL or file path
+  }
+
+  // Update user
+  await db.query(
+    `UPDATE users 
+     SET full_name = ?, email = ?, phone = ?, role = ?, status = ?, 
+         date_of_birth = ?, gender = ?, profile_image = ?, 
+         base_salary = ?, target_amount = ?, incentive_percentage = ?, incentive_amount = ?,
+         updated_at = NOW() 
+     WHERE user_id = ?`,
+    [
       full_name, 
       email, 
       phone, 
       role, 
-      status, 
-      date_of_birth, 
-      gender 
-    } = req.body;
+      status,
+      date_of_birth || null, 
+      gender || null, 
+      profileImage,
+      parseFloat(base_salary) || 0,
+      parseFloat(target_amount) || 0,
+      parseFloat(incentive_percentage) || 0,
+      incentiveAmount,
+      id
+    ]
+  );
 
-    // Debug logging
-    console.log('Received form data:', req.body);
-    console.log('Received file:', req.file);
-    console.log('Request headers:', req.headers['content-type']);
+  // Get updated user
+  const [users] = await db.query(
+    `SELECT user_id, email, full_name, phone, role, status, profile_image,
+            base_salary, target_amount, incentive_percentage, incentive_amount,
+            created_at, updated_at 
+     FROM users WHERE user_id = ?`,
+    [id]
+  );
 
-    // Validate required fields
-    if (!full_name || !email || !phone || !role || !status) {
-      return res.status(400).json({
-        success: false,
-        message: 'Missing required fields: full_name, email, phone, role, status'
-      });
-    }
-
-    // Handle profile image upload
-    let profile_image = existingUsers[0].profile_image;
-    if (req.file) {
-      profile_image = req.file.path;
-      console.log('New profile image set:', profile_image);
-    } else {
-      console.log('No new file uploaded, keeping existing image');
-    }
-
-    // Update user in database
-    const [result] = await db.query(
-      `UPDATE users 
-       SET full_name = ?, email = ?, phone = ?, role = ?, status = ?, 
-           date_of_birth = ?, gender = ?, profile_image = ?, updated_at = NOW() 
-       WHERE user_id = ?`,
-      [
-        full_name, 
-        email, 
-        phone, 
-        role, 
-        status, 
-        date_of_birth , 
-        gender , 
-        profile_image, 
-        id
-      ]
-    );
-
-    console.log('Database update result:', result);
-
-    // Get updated user
-    const [users] = await db.query(
-      `SELECT user_id, email, full_name, phone, date_of_birth, gender, 
-              profile_image, role, status, created_at, base_salary 
-       FROM users WHERE user_id = ?`,
-      [id]
-    );
-
-    res.json({
-      success: true,
-      message: 'User updated successfully',
-      user: users[0]
-    });
-
-  } catch (error) {
-    console.error('Error in updateUser:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error'
-    });
-  }
+  res.json({
+    success: true,
+    message: 'User updated successfully',
+    user: users[0]
+  });
 });
-
 // @desc    Set user base salary (Admin only)
 // @route   PUT /api/users/:id/salary
 exports.setUserSalary = asyncHandler(async (req, res) => {
@@ -262,4 +331,30 @@ exports.deleteUser = asyncHandler(async (req, res) => {
   }
 
   res.json({ success: true, message: 'User deleted successfully' });
+});
+// @desc    Get single user by ID
+// @route   GET /api/users/:id
+exports.getUserById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const [users] = await db.query(
+    `SELECT user_id, email, full_name, phone, role, status,date_of_birth, gender, 
+            profile_image, base_salary, target_amount, incentive_percentage, incentive_amount,
+            created_at, updated_at
+     FROM users 
+     WHERE user_id = ?`,
+    [id]
+  );
+
+  if (users.length === 0) {
+    return res.status(404).json({
+      success: false,
+      message: 'User not found'
+    });
+  }
+
+  res.json({
+    success: true,
+    user: users[0]
+  });
 });

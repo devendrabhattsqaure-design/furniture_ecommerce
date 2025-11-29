@@ -1,25 +1,137 @@
 const db = require('../config/database');
 const asyncHandler = require('express-async-handler');
 
-// @desc    Mark attendance for a user
+// @desc    Mark attendance for multiple users with sales amount
+// @route   POST /api/attendance/mark-bulk
+exports.markBulkAttendance = asyncHandler(async (req, res) => {
+  const { attendance_date, attendances } = req.body;
+
+  if (!attendance_date || !attendances || !Array.isArray(attendances)) {
+    return res.status(400).json({
+      success: false,
+      message: 'attendance_date and attendances array are required'
+    });
+  }
+
+  const results = {
+    success: [],
+    errors: []
+  };
+
+  for (const att of attendances) {
+    try {
+      const { user_id, status, work_hours, notes, sales_amount } = att;
+
+      if (!user_id || !status) {
+        results.errors.push({
+          user_id,
+          error: 'user_id and status are required'
+        });
+        continue;
+      }
+
+      // Check if user exists
+      const [users] = await db.query('SELECT user_id FROM users WHERE user_id = ?', [user_id]);
+      if (users.length === 0) {
+        results.errors.push({
+          user_id,
+          error: 'User not found'
+        });
+        continue;
+      }
+
+      // Set default work hours based on status
+      let finalWorkHours = work_hours;
+      if (!work_hours) {
+        switch (status) {
+          case 'present': 
+            finalWorkHours = 8.00; 
+            break;
+          case 'half_day': 
+            finalWorkHours = 4.00; 
+            break;
+          case 'absent':
+          case 'holiday': 
+            finalWorkHours = 0.00; 
+            break;
+          default: 
+            finalWorkHours = 8.00;
+        }
+      }
+
+      // Check if attendance already exists for this date
+      const [existing] = await db.query(
+        'SELECT * FROM attendance WHERE user_id = ? AND attendance_date = ?',
+        [user_id, attendance_date]
+      );
+
+      if (existing.length > 0) {
+        // Update existing attendance - only update sales_amount and other basic fields
+        await db.query(
+          `UPDATE attendance 
+           SET status = ?, work_hours = ?, notes = ?, marked_by = ?, 
+               sales_amount = ?, updated_at = NOW() 
+           WHERE attendance_id = ?`,
+          [
+            status, 
+            finalWorkHours, 
+            notes, 
+            req.user.id, 
+            parseFloat(sales_amount) || 0,
+            existing[0].attendance_id
+          ]
+        );
+      } else {
+        // Create new attendance record - only store sales_amount
+        await db.query(
+          `INSERT INTO attendance (
+            user_id, attendance_date, status, work_hours, notes, marked_by, sales_amount
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            user_id, 
+            attendance_date, 
+            status, 
+            finalWorkHours, 
+            notes, 
+            req.user.id,
+            parseFloat(sales_amount) || 0
+          ]
+        );
+      }
+
+      results.success.push({
+        user_id,
+        status,
+        sales_amount: parseFloat(sales_amount) || 0,
+        message: 'Attendance marked successfully'
+      });
+
+    } catch (error) {
+      console.error('Error marking attendance for user:', att.user_id, error);
+      results.errors.push({
+        user_id: att.user_id,
+        error: error.message
+      });
+    }
+  }
+
+  res.json({
+    success: true,
+    message: `Bulk attendance completed. Success: ${results.success.length}, Errors: ${results.errors.length}`,
+    results
+  });
+});
+
+// @desc    Mark attendance for a user with sales amount
 // @route   POST /api/attendance/mark
 exports.markAttendance = asyncHandler(async (req, res) => {
-  const { user_id, attendance_date, status, work_hours, notes } = req.body;
+  const { user_id, attendance_date, status, work_hours, notes, sales_amount } = req.body;
 
   // Validation
   if (!user_id || !attendance_date || !status) {
     return res.status(400).json({
       success: false,
       message: 'user_id, attendance_date, and status are required'
-    });
-  }
-
-  // Validate status
-  const validStatuses = ['present', 'absent', 'half_day', 'late', 'holiday'];
-  if (!validStatuses.includes(status)) {
-    return res.status(400).json({
-      success: false,
-      message: 'Invalid status. Must be: present, absent, half_day, late, or holiday'
     });
   }
 
@@ -61,19 +173,20 @@ exports.markAttendance = asyncHandler(async (req, res) => {
   );
 
   if (existing.length > 0) {
-    // Update existing attendance
+    // Update existing attendance - only sales_amount
     await db.query(
       `UPDATE attendance 
-       SET status = ?, work_hours = ?, notes = ?, marked_by = ?, updated_at = NOW() 
+       SET status = ?, work_hours = ?, notes = ?, marked_by = ?, 
+           sales_amount = ?, updated_at = NOW() 
        WHERE attendance_id = ?`,
-      [status, finalWorkHours, notes, req.user.id, existing[0].attendance_id]
+      [status, finalWorkHours, notes, req.user.id, parseFloat(sales_amount) || 0, existing[0].attendance_id]
     );
   } else {
-    // Create new attendance record
+    // Create new attendance record - only sales_amount
     await db.query(
-      `INSERT INTO attendance (user_id, attendance_date, status, work_hours, notes, marked_by) 
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [user_id, attendance_date, status, finalWorkHours, notes, req.user.id]
+      `INSERT INTO attendance (user_id, attendance_date, status, work_hours, notes, marked_by, sales_amount) 
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [user_id, attendance_date, status, finalWorkHours, notes, req.user.id, parseFloat(sales_amount) || 0]
     );
   }
 
@@ -95,97 +208,211 @@ exports.markAttendance = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Mark attendance for multiple users
-// @route   POST /api/attendance/mark-bulk
-exports.markBulkAttendance = asyncHandler(async (req, res) => {
-  const { attendance_date, attendances } = req.body;
+// @desc    Calculate monthly salary for a user with incentive based on sales
+// @route   GET /api/attendance/salary/:user_id
+exports.calculateMonthlySalary = asyncHandler(async (req, res) => {
+  const { user_id } = req.params;
+  const { month, year } = req.query;
 
-  if (!attendance_date || !attendances || !Array.isArray(attendances)) {
+  if (!month || !year) {
     return res.status(400).json({
       success: false,
-      message: 'attendance_date and attendances array are required'
+      message: 'Month and year are required'
     });
   }
 
-  const results = {
-    success: [],
-    errors: []
-  };
-
-  for (const att of attendances) {
-    try {
-      const { user_id, status, work_hours, notes } = att;
-
-      if (!user_id || !status) {
-        results.errors.push({
-          user_id,
-          error: 'user_id and status are required'
-        });
-        continue;
-      }
-
-      // Set default work hours
-      let finalWorkHours = work_hours;
-      if (!work_hours) {
-        switch (status) {
-          case 'present':
-            finalWorkHours = 8.00;
-            break;
-          case 'half_day':
-            finalWorkHours = 4.00;
-            break;
-          case 'late':
-            finalWorkHours = 7.00;
-            break;
-          case 'absent':
-          case 'holiday':
-            finalWorkHours = 0.00;
-            break;
-        }
-      }
-
-      // Check if attendance exists
-      const [existing] = await db.query(
-        'SELECT * FROM attendance WHERE user_id = ? AND attendance_date = ?',
-        [user_id, attendance_date]
-      );
-
-      if (existing.length > 0) {
-        await db.query(
-          `UPDATE attendance 
-           SET status = ?, work_hours = ?, notes = ?, marked_by = ?, updated_at = NOW() 
-           WHERE attendance_id = ?`,
-          [status, finalWorkHours, notes, req.user.id, existing[0].attendance_id]
-        );
-      } else {
-        await db.query(
-          `INSERT INTO attendance (user_id, attendance_date, status, work_hours, notes, marked_by) 
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [user_id, attendance_date, status, finalWorkHours, notes, req.user.id]
-        );
-      }
-
-      results.success.push({
-        user_id,
-        status,
-        message: 'Attendance marked successfully'
-      });
-
-    } catch (error) {
-      results.errors.push({
-        user_id: att.user_id,
-        error: error.message
-      });
-    }
+  // Get user details including base salary, target and incentive percentage
+  const [users] = await db.query(
+    'SELECT user_id, full_name, base_salary, target_amount, incentive_percentage FROM users WHERE user_id = ?', 
+    [user_id]
+  );
+  if (users.length === 0) {
+    return res.status(404).json({
+      success: false,
+      message: 'User not found'
+    });
   }
+
+  const user = users[0];
+  const baseSalary = user.base_salary || 0;
+  const targetAmount = user.target_amount || 0;
+  const incentivePercentage = user.incentive_percentage || 0;
+
+  // Get attendance for the month
+  const [attendance] = await db.query(
+    `SELECT * FROM attendance 
+     WHERE user_id = ? AND MONTH(attendance_date) = ? AND YEAR(attendance_date) = ? 
+     ORDER BY attendance_date`,
+    [user_id, month, year]
+  );
+
+  // Calculate monthly totals
+  let totalPresent = 0;
+  let totalAbsent = 0;
+  let totalHalfDays = 0;
+  let totalLate = 0;
+  let totalHolidays = 0;
+  let totalSales = 0;
+
+  attendance.forEach(record => {
+    switch (record.status) {
+      case 'present': totalPresent++; break;
+      case 'absent': totalAbsent++; break;
+      case 'half_day': totalHalfDays++; break;
+      case 'late': totalLate++; break;
+      case 'holiday': totalHolidays++; break;
+    }
+    totalSales += parseFloat(record.sales_amount || 0);
+  });
+
+  // Calculate incentive based on monthly sales vs target
+  let totalIncentive = 0;
+  if (targetAmount > 0 && totalSales >= targetAmount) {
+    totalIncentive = (totalSales * incentivePercentage) / 100;
+  }
+
+  // Calculate final salary (base salary + incentive)
+  const finalSalary = baseSalary + totalIncentive;
+
+  const salaryBreakdown = {
+    baseSalary,
+    targetAmount,
+    incentivePercentage,
+    totalPresent,
+    totalAbsent,
+    totalHalfDays,
+    totalLate,
+    totalHolidays,
+    totalSales,
+    totalIncentive,
+    finalSalary: finalSalary > 0 ? finalSalary : 0
+  };
 
   res.json({
     success: true,
-    message: `Bulk attendance completed. Success: ${results.success.length}, Errors: ${results.errors.length}`,
-    results
+    salaryBreakdown,
+    attendance
   });
 });
 
+// @desc    Get user attendance with salary calculation for specific month
+// @route   GET /api/attendance/user/:user_id
+exports.getUserAttendanceWithSalary = asyncHandler(async (req, res) => {
+  const { user_id } = req.params;
+  const { month, year } = req.query;
+
+  if (!month || !year) {
+    return res.status(400).json({
+      success: false,
+      message: 'Month and year are required'
+    });
+  }
+
+  // Get user details
+  const [users] = await db.query(
+    'SELECT user_id, full_name, email, role, base_salary, target_amount, incentive_percentage FROM users WHERE user_id = ?',
+    [user_id]
+  );
+
+  if (users.length === 0) {
+    return res.status(404).json({
+      success: false,
+      message: 'User not found'
+    });
+  }
+
+  const user = users[0];
+
+  // Get attendance for the specific month
+  const [attendance] = await db.query(
+    `SELECT attendance_id, user_id, attendance_date, status, work_hours, notes,
+            sales_amount, marked_by, created_at, updated_at
+     FROM attendance 
+     WHERE user_id = ? AND MONTH(attendance_date) = ? AND YEAR(attendance_date) = ? 
+     ORDER BY attendance_date`,
+    [user_id, month, year]
+  );
+
+  // Calculate monthly totals
+  let totalPresent = 0;
+  let totalAbsent = 0;
+  let totalHalfDays = 0;
+  let totalLate = 0;
+  let totalHolidays = 0;
+  let totalSales = 0;
+
+  attendance.forEach(record => {
+    switch (record.status) {
+      case 'present': totalPresent++; break;
+      case 'absent': totalAbsent++; break;
+      case 'half_day': totalHalfDays++; break;
+      case 'late': totalLate++; break;
+      case 'holiday': totalHolidays++; break;
+    }
+    totalSales += parseFloat(record.sales_amount || 0);
+  });
+
+  // NEW: Calculate attendance deductions based on the CORRECT policy
+  const dailySalary = user.base_salary / 30; // Assuming 30 days month
+  
+  // Policy: Either 1 free absent OR 2 free half days (2 half days = 1 absent)
+  const totalEquivalentAbsents = totalAbsent + (totalHalfDays / 2);
+  
+  // Free allowance: either 1 absent OR 2 half days (which is 1 equivalent absent)
+  const freeEquivalentAbsents = 1;
+  
+  // Calculate deductible equivalent absents
+  let totalDeductibleEquivalentAbsents = Math.max(0, totalEquivalentAbsents - freeEquivalentAbsents);
+  
+  // Calculate total deduction (can be fractional for half days)
+  const totalDeduction = totalDeductibleEquivalentAbsents * dailySalary;
+
+  // Calculate incentive based on monthly sales vs target
+  let totalIncentive = 0;
+  let targetAchieved = false;
+  
+  if (user.target_amount > 0 && totalSales >= user.target_amount) {
+    targetAchieved = true;
+    totalIncentive = (totalSales * user.incentive_percentage) / 100;
+  }
+
+  // Calculate final salary with deductions
+  const baseSalary = parseFloat(user.base_salary) || 0;
+  const finalSalary = Math.max(0, baseSalary + totalIncentive - totalDeduction);
+
+  const salarySummary = {
+    baseSalary: baseSalary,
+    targetAmount: parseFloat(user.target_amount) || 0,
+    incentivePercentage: parseFloat(user.incentive_percentage) || 0,
+    totalPresent,
+    totalAbsent,
+    totalHalfDays,
+    totalLate,
+    totalHolidays,
+    totalSales: parseFloat(totalSales.toFixed(2)),
+    totalIncentive: parseFloat(totalIncentive.toFixed(2)),
+    dailySalary: parseFloat(dailySalary.toFixed(2)),
+    totalEquivalentAbsents: parseFloat(totalEquivalentAbsents.toFixed(2)),
+    freeEquivalentAbsents: freeEquivalentAbsents,
+    totalDeductibleEquivalentAbsents: parseFloat(totalDeductibleEquivalentAbsents.toFixed(2)),
+    totalDeduction: parseFloat(totalDeduction.toFixed(2)),
+    finalSalary: parseFloat(finalSalary.toFixed(2)),
+    targetAchieved: targetAchieved,
+    attendancePolicy: {
+      freeAllowance: "1 absent OR 2 half days",
+      halfDayConversion: 2 // 2 half days = 1 absent
+    }
+  };
+
+  res.json({
+    success: true,
+    user,
+    attendance,
+    salarySummary
+  });
+});
+
+// The following functions remain mostly the same, just remove salary fields from queries
 // @desc    Get my attendance
 // @route   GET /api/attendance/my-attendance
 exports.getMyAttendance = asyncHandler(async (req, res) => {
@@ -231,7 +458,8 @@ exports.getMyAttendance = asyncHandler(async (req, res) => {
     late: attendance.filter(a => a.status === 'late').length,
     holiday: attendance.filter(a => a.status === 'holiday').length,
     total_days: attendance.length,
-    total_hours: attendance.reduce((sum, a) => sum + parseFloat(a.work_hours || 0), 0)
+    total_hours: attendance.reduce((sum, a) => sum + parseFloat(a.work_hours || 0), 0),
+    total_sales: attendance.reduce((sum, a) => sum + parseFloat(a.sales_amount || 0), 0)
   };
 
   res.json({
@@ -311,7 +539,8 @@ exports.getAttendanceSummary = asyncHandler(async (req, res) => {
       SUM(CASE WHEN status = 'half_day' THEN 1 ELSE 0 END) as half_days,
       SUM(CASE WHEN status = 'holiday' THEN 1 ELSE 0 END) as holiday_days,
       AVG(work_hours) as avg_hours_per_day,
-      SUM(work_hours) as total_hours
+      SUM(work_hours) as total_hours,
+      SUM(sales_amount) as total_sales
     FROM attendance 
     WHERE 1=1
   `;
@@ -369,9 +598,9 @@ exports.getUsersForAttendance = asyncHandler(async (req, res) => {
   const { date } = req.query;
   
   const [users] = await db.query(
-    `SELECT user_id, email, full_name, phone, role, status 
+    `SELECT user_id, email, full_name, phone, role, status, base_salary, target_amount, incentive_percentage
      FROM users 
-     WHERE status = 'active' AND role IN ('customer', 'manager', 'admin')
+     WHERE status = 'active' AND role IN ('employee', 'manager', 'admin')
      ORDER BY full_name ASC`
   );
 
@@ -379,7 +608,7 @@ exports.getUsersForAttendance = asyncHandler(async (req, res) => {
   if (date) {
     for (let user of users) {
       const [attendance] = await db.query(
-        'SELECT status, work_hours, notes FROM attendance WHERE user_id = ? AND attendance_date = ?',
+        'SELECT status, work_hours, notes, sales_amount FROM attendance WHERE user_id = ? AND attendance_date = ?',
         [user.user_id, date]
       );
       
@@ -391,344 +620,5 @@ exports.getUsersForAttendance = asyncHandler(async (req, res) => {
     success: true,
     count: users.length,
     users
-  });
-});
-
-// @desc    Mark attendance for a user with salary calculation
-// @route   POST /api/attendance/mark
-exports.markAttendance = asyncHandler(async (req, res) => {
-  const { user_id, attendance_date, status, work_hours, notes, sales_amount } = req.body;
-
-  // Validation
-  if (!user_id || !attendance_date || !status) {
-    return res.status(400).json({
-      success: false,
-      message: 'user_id, attendance_date, and status are required'
-    });
-  }
-
-  // Check if user exists and get base salary
-  const [users] = await db.query('SELECT user_id, base_salary FROM users WHERE user_id = ?', [user_id]);
-  if (users.length === 0) {
-    return res.status(404).json({
-      success: false,
-      message: 'User not found'
-    });
-  }
-
-  const user = users[0];
-  const baseSalary = user.base_salary || 0;
-
-  // Set default work hours based on status
-  let finalWorkHours = work_hours;
-  if (!work_hours) {
-    switch (status) {
-      case 'present':
-        finalWorkHours = 8.00;
-        break;
-      case 'half_day':
-        finalWorkHours = 4.00;
-        break;
-      case 'late':
-        finalWorkHours = 7.00;
-        break;
-      case 'absent':
-      case 'holiday':
-        finalWorkHours = 0.00;
-        break;
-      default:
-        finalWorkHours = 8.00;
-    }
-  }
-
-  // Calculate daily salary and incentive
-  const dailySalary = baseSalary / 30; // Assuming 30 days month
-  let incentiveAmount = 0;
-  let incentivePercentage = 0;
-
-  // Calculate incentive based on sales
-  if (sales_amount && sales_amount > 0) {
-    if (sales_amount > 10000) {
-      incentivePercentage = 2.0;
-      incentiveAmount = (sales_amount * incentivePercentage) / 100;
-    }
-  }
-
-  let totalSalary = 0;
-  if (status === 'present' || status === 'late') {
-    totalSalary = dailySalary + incentiveAmount;
-  } else if (status === 'half_day') {
-    totalSalary = (dailySalary / 2) + incentiveAmount;
-  } else {
-    totalSalary = incentiveAmount; // Only incentive for absent/holiday if they made sales
-  }
-
-  // Check if attendance already exists for this date
-  const [existing] = await db.query(
-    'SELECT * FROM attendance WHERE user_id = ? AND attendance_date = ?',
-    [user_id, attendance_date]
-  );
-
-  if (existing.length > 0) {
-    // Update existing attendance
-    await db.query(
-      `UPDATE attendance 
-       SET status = ?, work_hours = ?, notes = ?, marked_by = ?, 
-           base_salary = ?, sales_amount = ?, incentive_percentage = ?, 
-           incentive_amount = ?, total_salary = ?, updated_at = NOW() 
-       WHERE attendance_id = ?`,
-      [status, finalWorkHours, notes, req.user.id, baseSalary, sales_amount || 0, 
-       incentivePercentage, incentiveAmount, totalSalary, existing[0].attendance_id]
-    );
-  } else {
-    // Create new attendance record
-    await db.query(
-      `INSERT INTO attendance (user_id, attendance_date, status, work_hours, notes, marked_by,
-       base_salary, sales_amount, incentive_percentage, incentive_amount, total_salary) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [user_id, attendance_date, status, finalWorkHours, notes, req.user.id,
-       baseSalary, sales_amount || 0, incentivePercentage, incentiveAmount, totalSalary]
-    );
-  }
-
-  // Get the updated/created record
-  const [attendance] = await db.query(
-    `SELECT a.*, u.full_name, u.email, u.role,
-            marker.full_name as marked_by_name
-     FROM attendance a 
-     JOIN users u ON a.user_id = u.user_id 
-     LEFT JOIN users marker ON a.marked_by = marker.user_id
-     WHERE a.user_id = ? AND a.attendance_date = ?`,
-    [user_id, attendance_date]
-  );
-
-  res.json({
-    success: true,
-    message: `Attendance marked as ${status} successfully`,
-    attendance: attendance[0]
-  });
-});
-
-// @desc    Calculate monthly salary for a user
-// @route   GET /api/attendance/salary/:user_id
-exports.calculateMonthlySalary = asyncHandler(async (req, res) => {
-  const { user_id } = req.params;
-  const { month, year } = req.query;
-
-  if (!month || !year) {
-    return res.status(400).json({
-      success: false,
-      message: 'Month and year are required'
-    });
-  }
-
-  // Get user base salary
-  const [users] = await db.query('SELECT base_salary FROM users WHERE user_id = ?', [user_id]);
-  if (users.length === 0) {
-    return res.status(404).json({
-      success: false,
-      message: 'User not found'
-    });
-  }
-
-  const baseSalary = users[0].base_salary || 0;
-
-  // Get attendance for the month
-  const [attendance] = await db.query(
-    `SELECT * FROM attendance 
-     WHERE user_id = ? AND MONTH(attendance_date) = ? AND YEAR(attendance_date) = ? 
-     ORDER BY attendance_date`,
-    [user_id, month, year]
-  );
-
-  // Calculate salary breakdown
-  let totalPresent = 0;
-  let totalAbsent = 0;
-  let totalHalfDays = 0;
-  let totalLate = 0;
-  let totalHolidays = 0;
-  let totalSales = 0;
-  let totalIncentive = 0;
-  let totalSalary = 0;
-
-  const dailySalary = baseSalary / 30;
-  const workingDays = attendance.filter(a => 
-    a.status === 'present' || a.status === 'late' || a.status === 'half_day'
-  ).length;
-
-  attendance.forEach(record => {
-    switch (record.status) {
-      case 'present':
-        totalPresent++;
-        break;
-      case 'absent':
-        totalAbsent++;
-        break;
-      case 'half_day':
-        totalHalfDays++;
-        break;
-      case 'late':
-        totalLate++;
-        break;
-      case 'holiday':
-        totalHolidays++;
-        break;
-    }
-
-    totalSales += parseFloat(record.sales_amount || 0);
-    totalIncentive += parseFloat(record.incentive_amount || 0);
-    totalSalary += parseFloat(record.total_salary || 0);
-  });
-
-  // Apply absent deduction rules (1 absent free, then deduct)
-  let absentDeduction = 0;
-  if (totalAbsent > 1) {
-    absentDeduction = (totalAbsent - 1) * dailySalary;
-  }
-
-  const finalSalary = totalSalary - absentDeduction;
-
-  const salaryBreakdown = {
-    baseSalary,
-    totalPresent,
-    totalAbsent,
-    totalHalfDays,
-    totalLate,
-    totalHolidays,
-    workingDays,
-    totalSales,
-    totalIncentive,
-    dailySalary: dailySalary.toFixed(2),
-    absentDeduction,
-    totalEarned: totalSalary,
-    finalSalary: finalSalary > 0 ? finalSalary : 0
-  };
-
-  res.json({
-    success: true,
-    salaryBreakdown,
-    attendance
-  });
-});
-
-// @desc    Set user base salary
-// @route   PUT /api/users/:id/salary
-exports.setUserSalary = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const { base_salary } = req.body;
-
-  if (!base_salary || base_salary < 0) {
-    return res.status(400).json({
-      success: false,
-      message: 'Valid base salary is required'
-    });
-  }
-
-  // Check if user exists
-  const [existingUsers] = await db.query('SELECT * FROM users WHERE user_id = ?', [id]);
-  if (existingUsers.length === 0) {
-    return res.status(404).json({
-      success: false,
-      message: 'User not found'
-    });
-  }
-
-  await db.query(
-    'UPDATE users SET base_salary = ?, updated_at = NOW() WHERE user_id = ?',
-    [base_salary, id]
-  );
-
-  res.json({
-    success: true,
-    message: 'Base salary updated successfully'
-  });
-});
-
-// @desc    Get user attendance with salary for specific month
-// @route   GET /api/attendance/user/:user_id
-exports.getUserAttendanceWithSalary = asyncHandler(async (req, res) => {
-  const { user_id } = req.params;
-  const { month, year } = req.query;
-
-  if (!month || !year) {
-    return res.status(400).json({
-      success: false,
-      message: 'Month and year are required'
-    });
-  }
-
-  // Get user details
-  const [users] = await db.query(
-    'SELECT user_id, full_name, email, role, base_salary FROM users WHERE user_id = ?',
-    [user_id]
-  );
-
-  if (users.length === 0) {
-    return res.status(404).json({
-      success: false,
-      message: 'User not found'
-    });
-  }
-
-  const user = users[0];
-
-  // Get attendance for the specific month
-  const [attendance] = await db.query(
-    `SELECT * FROM attendance 
-     WHERE user_id = ? AND MONTH(attendance_date) = ? AND YEAR(attendance_date) = ? 
-     ORDER BY attendance_date`,
-    [user_id, month, year]
-  );
-
-  // Calculate salary summary
-  let totalPresent = 0;
-  let totalAbsent = 0;
-  let totalHalfDays = 0;
-  let totalLate = 0;
-  let totalSales = 0;
-  let totalIncentive = 0;
-  let totalEarned = 0;
-
-  attendance.forEach(record => {
-    switch (record.status) {
-      case 'present': totalPresent++; break;
-      case 'absent': totalAbsent++; break;
-      case 'half_day': totalHalfDays++; break;
-      case 'late': totalLate++; break;
-    }
-    totalSales += parseFloat(record.sales_amount || 0);
-    totalIncentive += parseFloat(record.incentive_amount || 0);
-    totalEarned += parseFloat(record.total_salary || 0);
-  });
-
-  // Calculate final salary with absent deduction
-  const dailySalary = user.base_salary / 30;
-  let absentDeduction = 0;
-  if (totalAbsent > 1) {
-    absentDeduction = (totalAbsent - 1) * dailySalary;
-  }
-
-  const finalSalary = totalEarned - absentDeduction;
-
-  const salarySummary = {
-    baseSalary: user.base_salary,
-    totalPresent,
-    totalAbsent,
-    totalHalfDays,
-    totalLate,
-    totalWorkingDays: totalPresent + totalHalfDays + totalLate,
-    totalSales,
-    totalIncentive,
-    dailySalary: dailySalary.toFixed(2),
-    absentDeduction,
-    totalEarned,
-    finalSalary: finalSalary > 0 ? finalSalary : 0
-  };
-
-  res.json({
-    success: true,
-    user,
-    attendance,
-    salarySummary
   });
 });

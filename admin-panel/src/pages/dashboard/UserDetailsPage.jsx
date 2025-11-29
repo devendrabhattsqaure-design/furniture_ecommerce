@@ -1,10 +1,10 @@
 // admin-panel/src/pages/dashboard/UserDetailsPage.jsx
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Calendar, User, Mail, Phone, Cake, Clock, DollarSign, TrendingUp, Loader2 } from "lucide-react";
+import { ArrowLeft, Calendar, User, Mail, Phone, Cake, Clock, DollarSign, TrendingUp, Loader2, Receipt } from "lucide-react";
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-
+import { Target, Percent } from "lucide-react";
 const UserDetailsPage = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
@@ -25,12 +25,40 @@ const UserDetailsPage = () => {
   }, [userId]);
 
   useEffect(() => {
-    if (userId) {
+    if (userId && user) {
       fetchAttendanceData();
     }
-  }, [userId, selectedMonth, selectedYear]);
+  }, [userId, selectedMonth, selectedYear, user]);
 
   const fetchUserDetails = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data.user || data);
+      } else if (response.status === 404) {
+        // If single user endpoint doesn't exist, fall back to getting all users
+        await fetchUserFromAllUsers();
+      } else {
+        toast.error("Failed to fetch user details");
+      }
+    } catch (error) {
+      console.error('Error fetching user:', error);
+      // Fall back to getting all users
+      await fetchUserFromAllUsers();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fallback method to get user from all users list
+  const fetchUserFromAllUsers = async () => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`${API_BASE_URL}/users`, {
@@ -42,7 +70,7 @@ const UserDetailsPage = () => {
       if (response.ok) {
         const data = await response.json();
         const users = data.users || data;
-        const foundUser = users.find(u => u.user_id == userId);
+        const foundUser = Array.isArray(users) ? users.find(u => u.user_id == userId) : null;
         if (foundUser) {
           setUser(foundUser);
         } else {
@@ -51,16 +79,18 @@ const UserDetailsPage = () => {
         }
       } else {
         toast.error("Failed to fetch user details");
+        navigate('/dashboard/user-management');
       }
     } catch (error) {
-      console.error('Error fetching user:', error);
+      console.error('Error fetching users:', error);
       toast.error("Error loading user details");
-    } finally {
-      setLoading(false);
+      navigate('/dashboard/user-management');
     }
   };
 
   const fetchAttendanceData = async () => {
+    if (!user) return;
+    
     try {
       setFetchingData(true);
       const token = localStorage.getItem('token');
@@ -89,10 +119,85 @@ const UserDetailsPage = () => {
     }
   };
 
+  const DailySalaryBreakdown = ({ attendance, user }) => {
+  if (!attendance || attendance.length === 0) {
+    return (
+      <div className="bg-white rounded-lg border p-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Daily Sales & Attendance</h3>
+        <p className="text-gray-500 text-center py-4">No attendance records for this month</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-lg border p-6">
+      <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+        <Receipt className="w-5 h-5" />
+        Daily Sales & Attendance - {new Date(selectedYear, selectedMonth - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
+      </h3>
+      
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Work Hours</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sales (₹)</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {attendance.map((record) => (
+              <tr key={record.attendance_id} className="hover:bg-gray-50">
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                  {new Date(record.attendance_date).toLocaleDateString()}
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    record.status === 'present' ? 'bg-green-100 text-green-800' :
+                    record.status === 'absent' ? 'bg-red-100 text-red-800' :
+                    record.status === 'half_day' ? 'bg-yellow-100 text-yellow-800' :
+                    record.status === 'late' ? 'bg-orange-100 text-orange-800' :
+                    'bg-blue-100 text-blue-800'
+                  }`}>
+                    {record.status.charAt(0).toUpperCase() + record.status.slice(1).replace('_', ' ')}
+                  </span>
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                  {record.work_hours} hours
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                  {record.sales_amount ? `₹${parseFloat(record.sales_amount).toLocaleString()}` : '-'}
+                </td>
+                <td className="px-4 py-3 text-sm text-gray-900 max-w-xs">
+                  {record.notes || '-'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="bg-gray-50">
+            <tr>
+              <td colSpan="3" className="px-4 py-3 text-sm font-medium text-gray-900 text-right">
+                Monthly Sales Total:
+              </td>
+              <td className="px-4 py-3 text-sm font-bold text-gray-900">
+                ₹{attendance.reduce((sum, record) => sum + parseFloat(record.sales_amount || 0), 0).toLocaleString()}
+              </td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+
   // Calendar component for attendance
   const AttendanceCalendar = ({ attendance }) => {
     const currentDate = new Date();
-    const currentMonth = selectedMonth - 1; // JavaScript months are 0-indexed
+    const currentMonth = selectedMonth - 1;
     const currentYear = selectedYear;
     
     const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
@@ -111,7 +216,12 @@ const UserDetailsPage = () => {
       const year = recordDate.getFullYear();
       
       if (month === currentMonth && year === currentYear) {
-        attendanceMap[date] = record.status;
+        attendanceMap[date] = {
+          status: record.status,
+          sales: record.sales_amount,
+          incentive: record.incentive_amount,
+          total: record.total_salary
+        };
       }
     });
 
@@ -136,16 +246,27 @@ const UserDetailsPage = () => {
       }
     };
 
-    const getStatusTooltip = (status, date) => {
+    const getStatusTooltip = (attendanceData, date) => {
+      if (!attendanceData) return `${date} - No Record`;
+      
       const statusText = {
         'present': 'Present',
         'absent': 'Absent',
         'half_day': 'Half Day',
         'late': 'Late',
         'holiday': 'Holiday'
-      }[status] || 'No Record';
+      }[attendanceData.status] || 'No Record';
       
-      return `${date} - ${statusText}`;
+      let tooltip = `${date} - ${statusText}`;
+      if (attendanceData.sales > 0) {
+        tooltip += `\nSales: ₹${attendanceData.sales}`;
+      }
+      if (attendanceData.incentive > 0) {
+        tooltip += `\nIncentive: ₹${attendanceData.incentive}`;
+      }
+      tooltip += `\nTotal: ₹${parseFloat(attendanceData.total || 0).toFixed(2)}`;
+      
+      return tooltip;
     };
 
     return (
@@ -182,7 +303,7 @@ const UserDetailsPage = () => {
                   </span>
                   {attendanceMap[day] && (
                     <div
-                      className={`absolute inset-0 rounded ${getStatusColor(attendanceMap[day])} opacity-80`}
+                      className={`absolute inset-0 rounded ${getStatusColor(attendanceMap[day].status)} opacity-80`}
                       title={getStatusTooltip(attendanceMap[day], day)}
                     ></div>
                   )}
@@ -194,119 +315,226 @@ const UserDetailsPage = () => {
 
         {/* Legend */}
         <div className="mt-4 flex flex-wrap gap-2 justify-center">
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-green-500 rounded"></div>
-            <span className="text-xs text-gray-600">Present</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-red-500 rounded"></div>
-            <span className="text-xs text-gray-600">Absent</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-yellow-500 rounded"></div>
-            <span className="text-xs text-gray-600">Half Day</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-orange-500 rounded"></div>
-            <span className="text-xs text-gray-600">Late</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-blue-500 rounded"></div>
-            <span className="text-xs text-gray-600">Holiday</span>
-          </div>
+          {['present', 'absent', 'half_day', 'late', 'holiday'].map(status => (
+            <div key={status} className="flex items-center gap-1">
+              <div className={`w-3 h-3 rounded ${getStatusColor(status)}`}></div>
+              <span className="text-xs text-gray-600">
+                {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
     );
   };
 
-  // Salary Breakdown Component
-  const SalaryBreakdown = ({ summary }) => {
-    if (!summary) return null;
-
+ // Salary Breakdown Component with CORRECT Deduction Details
+const SalaryBreakdown = ({ summary, user }) => {
+  if (!summary) {
     return (
       <div className="bg-white rounded-lg border p-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-          <DollarSign className="w-5 h-5" />
-          Salary Breakdown - {new Date(selectedYear, selectedMonth - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
-        </h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="bg-blue-50 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <DollarSign className="w-4 h-4 text-blue-600" />
-              <span className="text-sm font-medium text-blue-800">Base Salary</span>
-            </div>
-            <p className="text-2xl font-bold text-blue-900">₹{summary.baseSalary || '0.00'}</p>
-          </div>
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Salary Summary</h3>
+        <p className="text-gray-500 text-center py-4">No salary data available for this month</p>
+      </div>
+    );
+  }
 
-          <div className="bg-green-50 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <TrendingUp className="w-4 h-4 text-green-600" />
-              <span className="text-sm font-medium text-green-800">Total Incentive</span>
-            </div>
-            <p className="text-2xl font-bold text-green-900">₹{summary.totalIncentive?.toFixed(2) || '0.00'}</p>
-          </div>
+  const targetAchieved = summary.targetAchieved;
+  const achievementPercentage = summary.targetAmount > 0 ? 
+    (summary.totalSales / summary.targetAmount) * 100 : 0;
 
-          <div className="bg-purple-50 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <DollarSign className="w-4 h-4 text-purple-600" />
-              <span className="text-sm font-medium text-purple-800">Final Salary</span>
-            </div>
-            <p className="text-2xl font-bold text-purple-900">₹{summary.finalSalary?.toFixed(2) || '0.00'}</p>
+  // Calculate free allowance usage
+  const freeAllowanceUsed = Math.min(summary.totalEquivalentAbsents, summary.freeEquivalentAbsents);
+  const isUsingHalfDayAllowance = summary.totalHalfDays >= 2 && summary.totalAbsent === 0;
+
+  return (
+    <div className="bg-white rounded-lg border p-6">
+      <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+        <DollarSign className="w-5 h-5" />
+        Monthly Salary Summary - {new Date(selectedYear, selectedMonth - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
+      </h3>
+      
+      {/* Salary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        {/* Base Salary */}
+        <div className="bg-blue-50 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <DollarSign className="w-4 h-4 text-blue-600" />
+            <span className="text-sm font-medium text-blue-800">Base Salary</span>
           </div>
+          <p className="text-2xl font-bold text-blue-900">
+            ₹{summary.baseSalary?.toLocaleString() || '0'}
+          </p>
         </div>
 
-        <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">{summary.totalPresent || 0}</div>
-            <div className="text-sm text-gray-600">Present Days</div>
+        {/* Total Sales */}
+        <div className="bg-green-50 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingUp className="w-4 h-4 text-green-600" />
+            <span className="text-sm font-medium text-green-800">Total Sales</span>
           </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-red-600">{summary.totalAbsent || 0}</div>
-            <div className="text-sm text-gray-600">Absent Days</div>
+          <p className="text-2xl font-bold text-green-900">
+            ₹{summary.totalSales?.toLocaleString() || '0'}
+          </p>
+        </div>
+
+        {/* Sales Target */}
+        <div className="bg-purple-50 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Target className="w-4 h-4 text-purple-600" />
+            <span className="text-sm font-medium text-purple-800">Sales Target</span>
           </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-yellow-600">{summary.totalHalfDays || 0}</div>
-            <div className="text-sm text-gray-600">Half Days</div>
+          <p className="text-2xl font-bold text-purple-900">
+            ₹{summary.targetAmount?.toLocaleString() || '0'}
+          </p>
+        </div>
+
+        {/* Incentive Rate */}
+        <div className="bg-yellow-50 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Percent className="w-4 h-4 text-yellow-600" />
+            <span className="text-sm font-medium text-yellow-800">Incentive Rate</span>
           </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-orange-600">{summary.totalLate || 0}</div>
-            <div className="text-sm text-gray-600">Late Days</div>
+          <p className="text-2xl font-bold text-yellow-900">
+            {summary.incentivePercentage || '0'}%
+          </p>
+        </div>
+
+        {/* Incentive Earned */}
+        <div className="bg-indigo-50 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingUp className="w-4 h-4 text-indigo-600" />
+            <span className="text-sm font-medium text-indigo-800">Incentive Earned</span>
+          </div>
+          <p className="text-2xl font-bold text-indigo-900">
+            ₹{summary.totalIncentive?.toLocaleString() || '0'}
+          </p>
+        </div>
+
+        {/* Final Salary */}
+        <div className="bg-green-50 rounded-lg p-4 border-2 border-green-200">
+          <div className="flex items-center gap-2 mb-2">
+            <DollarSign className="w-4 h-4 text-green-600" />
+            <span className="text-sm font-medium text-green-800">Final Salary</span>
+          </div>
+          <p className="text-2xl font-bold text-green-900">
+            ₹{summary.finalSalary?.toLocaleString() || '0'}
+          </p>
+        </div>
+      </div>
+
+      {/* Attendance Policy & Deductions */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Attendance Summary */}
+        <div className="bg-gray-50 rounded-lg p-4 border">
+          <h4 className="font-semibold text-gray-800 mb-3">Attendance Summary</h4>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="text-center p-3 bg-green-50 rounded-lg">
+              <div className="text-xl font-bold text-green-600">{summary.totalPresent || 0}</div>
+              <div className="text-xs text-gray-600">Present</div>
+            </div>
+            <div className="text-center p-3 bg-red-50 rounded-lg">
+              <div className="text-xl font-bold text-red-600">{summary.totalAbsent || 0}</div>
+              <div className="text-xs text-gray-600">Absent</div>
+            </div>
+            <div className="text-center p-3 bg-yellow-50 rounded-lg">
+              <div className="text-xl font-bold text-yellow-600">{summary.totalHalfDays || 0}</div>
+              <div className="text-xs text-gray-600">Half Days</div>
+            </div>
+            
           </div>
         </div>
 
         {/* Deduction Details */}
-        {summary.absentDeduction > 0 && (
-          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <div className="flex justify-between items-center">
-              <span className="text-red-700 font-medium">Absent Deduction:</span>
-              <span className="text-red-700 font-bold">-₹{summary.absentDeduction?.toFixed(2)}</span>
+        <div className="bg-gray-50 rounded-lg p-4 border">
+          <h4 className="font-semibold text-gray-800 mb-3">Deduction Calculation</h4>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span>Total Equivalent Absents:</span>
+              <span className="font-medium">{summary.totalEquivalentAbsents} days</span>
             </div>
-            <p className="text-xs text-red-600 mt-1">
-              (First absent is free, subsequent absents are deducted at ₹{summary.dailySalary}/day)
-            </p>
-          </div>
-        )}
-
-        {/* Sales Summary */}
-        {summary.totalSales > 0 && (
-          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-            <div className="flex justify-between items-center">
-              <span className="text-green-700 font-medium">Total Sales:</span>
-              <span className="text-green-700 font-bold">₹{summary.totalSales?.toFixed(2)}</span>
+            <div className="flex justify-between">
+              <span>Free Allowance:</span>
+              <span className="font-medium text-green-600">{summary.freeEquivalentAbsents} day</span>
             </div>
-            <p className="text-xs text-green-600 mt-1">
-              {summary.totalIncentive > 0 ? 
-                `2% incentive applied on sales above ₹10,000` : 
-                'Sales below ₹10,000 threshold for incentive'
-              }
-            </p>
+            <div className="flex justify-between">
+              <span>Deductible Absents:</span>
+              <span className="font-medium text-red-600">{summary.totalDeductibleEquivalentAbsents} days</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Daily Salary Rate:</span>
+              <span className="font-medium">₹{summary.dailySalary || '0'}</span>
+            </div>
+            {summary.totalDeduction > 0 && (
+              <div className="flex justify-between font-bold border-t pt-2">
+                <span>Total Deduction:</span>
+                <span className="text-red-600">-₹{summary.totalDeduction?.toLocaleString() || '0'}</span>
+              </div>
+            )}
+            
           </div>
-        )}
+        </div>
       </div>
-    );
-  };
 
+
+      {/* Target Achievement Progress */}
+      {summary.targetAmount > 0 && (
+        <div className="mt-4 p-4 bg-gray-50 rounded-lg border">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm font-medium text-gray-700">Sales Target Achievement</span>
+            <span className="text-sm font-bold text-gray-900">
+              {achievementPercentage.toFixed(1)}%
+            </span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-3">
+            <div 
+              className={`h-3 rounded-full ${
+                targetAchieved ? 'bg-green-500' : 'bg-blue-500'
+              }`}
+              style={{ width: `${Math.min(achievementPercentage, 100)}%` }}
+            ></div>
+          </div>
+          <p className={`text-sm font-medium mt-2 ${
+            targetAchieved ? 'text-green-600' : 'text-blue-600'
+          }`}>
+            {targetAchieved 
+              ? `🎉 Target achieved! Incentive of ${summary.incentivePercentage}% applied.`
+              : `Need ₹${(summary.targetAmount - summary.totalSales).toLocaleString()} more to achieve target for incentive`
+            }
+          </p>
+        </div>
+      )}
+
+      {/* Salary Calculation Breakdown */}
+      <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+        <h4 className="font-semibold text-blue-800 mb-3">Salary Calculation Breakdown</h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span>Base Salary:</span>
+              <span className="font-medium">₹{summary.baseSalary?.toLocaleString() || '0'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Incentive Earned:</span>
+              <span className="font-medium text-green-600">+₹{summary.totalIncentive?.toLocaleString() || '0'}</span>
+            </div>
+            {summary.totalDeduction > 0 && (
+              <div className="flex justify-between">
+                <span>Attendance Deduction:</span>
+                <span className="font-medium text-red-600">-₹{summary.totalDeduction?.toLocaleString() || '0'}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-bold text-blue-800 border-t pt-2">
+              <span>Final Salary:</span>
+              <span>₹{summary.finalSalary?.toLocaleString() || '0'}</span>
+            </div>
+          </div>
+          
+        </div>
+      </div>
+    </div>
+  );
+};
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -358,7 +586,7 @@ const UserDetailsPage = () => {
               ) : (
                 <div className="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center border-4 border-white/20">
                   <span className="text-white font-semibold text-2xl">
-                    {user.full_name.charAt(0)}
+                    {user.full_name?.charAt(0)}
                   </span>
                 </div>
               )}
@@ -392,7 +620,7 @@ const UserDetailsPage = () => {
                   user.status === "inactive" ? "bg-gray-500 text-white" : 
                   "bg-red-500 text-white"
                 }`}>
-                  {user.status}
+                  {user.status?.charAt(0).toUpperCase() + user.status?.slice(1)}
                 </span>
               </div>
             </div>
@@ -435,16 +663,21 @@ const UserDetailsPage = () => {
                 <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
               </div>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Attendance Calendar */}
-                <div>
-                  <AttendanceCalendar attendance={attendance} />
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Attendance Calendar */}
+                  <div>
+                    <AttendanceCalendar attendance={attendance} />
+                  </div>
+
+                  {/* Salary Breakdown */}
+                  <div>
+                    <SalaryBreakdown summary={salarySummary} />
+                  </div>
                 </div>
 
-                {/* Salary Breakdown */}
-                <div>
-                  <SalaryBreakdown summary={salarySummary} />
-                </div>
+                {/* Daily Salary Breakdown */}
+                <DailySalaryBreakdown attendance={attendance} />
               </div>
             )}
           </div>

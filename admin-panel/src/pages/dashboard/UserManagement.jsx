@@ -1,36 +1,37 @@
 // admin-panel/src/pages/dashboard/UserManagement.jsx
 import React, { useState, useEffect } from "react";
-import { Users, Edit2, Trash2, X, Plus, Upload, Loader2, Eye, Calendar } from "lucide-react";
+import { Users, Edit2, Trash2, X, Plus, Upload, Loader2, Eye, Calendar, DollarSign, Target, TrendingUp } from "lucide-react";
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { DollarSign } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isTargetModalOpen, setIsTargetModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
-  const [userAttendance, setUserAttendance] = useState([]);
   const [previewImage, setPreviewImage] = useState(null);
   const [loading, setLoading] = useState(false);
   const [fetchingUsers, setFetchingUsers] = useState(true);
-  const [fetchingAttendance, setFetchingAttendance] = useState(false);
+  
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
     phone: "",
     date_of_birth: "",
     gender: "",
-    role: "customer",
+    role: "employee",
     status: "active",
+    base_salary: "",
+    target_amount: "",
+    incentive_percentage: "",
     profile_image: null
   });
-  const navigate = useNavigate();
 
+  const navigate = useNavigate();
   const API_BASE_URL = "http://localhost:5000/api";
 
-  // Fetch all users on mount
   useEffect(() => {
     fetchUsers();
   }, []);
@@ -59,45 +60,19 @@ const UserManagement = () => {
     }
   };
 
-  const fetchUserAttendance = async (userId) => {
-    try {
-      setFetchingAttendance(true);
-      const token = localStorage.getItem('token');
-      const currentDate = new Date();
-      const month = currentDate.getMonth() + 1;
-      const year = currentDate.getFullYear();
-
-      const response = await fetch(
-        `${API_BASE_URL}/attendance/my-attendance?user_id=${userId}&month=${month}&year=${year}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        setUserAttendance(data.attendance || []);
-      } else {
-        toast.error("Failed to fetch attendance");
-      }
-    } catch (error) {
-      console.error('Error fetching attendance:', error);
-      toast.error("Error loading attendance");
-    } finally {
-      setFetchingAttendance(false);
-    }
-  };
-
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+
+    // Auto-calculate incentive amount when target amount or percentage changes
+    if ((name === 'target_amount' || name === 'incentive_percentage') && 
+        formData.target_amount && formData.incentive_percentage) {
+      // This is just for display, the calculation happens on backend
+    }
   };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
-    console.log('File selected:', file); // Debug log
     
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
@@ -105,7 +80,6 @@ const UserManagement = () => {
         return;
       }
       
-      // Check file type
       if (!file.type.startsWith('image/')) {
         toast.error("Please select an image file");
         return;
@@ -115,11 +89,8 @@ const UserManagement = () => {
       const reader = new FileReader();
       reader.onloadend = () => {
         setPreviewImage(reader.result);
-        console.log('Preview image set'); // Debug log
       };
       reader.readAsDataURL(file);
-    } else {
-      console.log('No file selected'); // Debug log
     }
   };
 
@@ -130,37 +101,52 @@ const UserManagement = () => {
       phone: "",
       date_of_birth: "",
       gender: "",
-      role: "customer",
+      role: "employee",
       status: "active",
+      base_salary: "",
+      target_amount: "",
+      incentive_percentage: "",
       profile_image: null
     });
     setPreviewImage(null);
     setEditingUser(null);
   };
 
-  const openModal = (user = null) => {
-    if (user) {
-      setEditingUser(user);
-      setFormData({
-        full_name: user.full_name,
-        email: user.email,
-        phone: user.phone || "",
-        date_of_birth: user.date_of_birth || "",
-        role: user.role,
-        gender: user.gender || "",
-        status: user.status,
-        profile_image: null
-      });
-      setPreviewImage(user.profile_image || null);
-    } else {
-      resetForm();
-    }
-    setIsModalOpen(true);
+ const openModal = (user = null) => {
+  if (user) {
+    setEditingUser(user);
+    setFormData({
+      full_name: user.full_name || "",
+      email: user.email || "",
+      phone: user.phone || "",
+      date_of_birth: user.date_of_birth || "",
+      role: user.role || "employee",
+      gender: user.gender || "",
+      status: user.status || "active",
+      base_salary: user.base_salary || "",
+      target_amount: user.target_amount || "",
+      incentive_percentage: user.incentive_percentage || "",
+      profile_image: null
+    });
+    setPreviewImage(user.profile_image || null);
+  } else {
+    resetForm();
+  }
+  setIsModalOpen(true);
+};
+
+  const openTargetModal = (user) => {
+    setSelectedUser(user);
+    setFormData({
+      base_salary: user.base_salary || "",
+      target_amount: user.target_amount || "",
+      incentive_percentage: user.incentive_percentage || ""
+    });
+    setIsTargetModalOpen(true);
   };
 
   const openDetailModal = async (user) => {
-   
-  navigate(`/dashboard/users/${user.user_id}`);
+    navigate(`/dashboard/users/${user.user_id}`);
   };
 
   const closeModal = () => {
@@ -168,39 +154,9 @@ const UserManagement = () => {
     resetForm();
   };
 
-  const setUserSalary = async (userId, currentSalary) => {
-  const newSalary = prompt('Enter base salary:', currentSalary || '0');
-  
-  if (newSalary && !isNaN(newSalary)) {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/users/${userId}/salary`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ base_salary: parseFloat(newSalary) })
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        toast.success("Salary updated successfully");
-        fetchUsers();
-      } else {
-        toast.error(data.message || "Failed to update salary");
-      }
-    } catch (error) {
-      console.error('Error updating salary:', error);
-      toast.error("Network error. Please try again.");
-    }
-  }
-};
-  const closeDetailModal = () => {
-    setIsDetailModalOpen(false);
+  const closeTargetModal = () => {
+    setIsTargetModalOpen(false);
     setSelectedUser(null);
-    setUserAttendance([]);
   };
 
   const validateForm = () => {
@@ -225,6 +181,10 @@ const UserManagement = () => {
       toast.error("Role is required");
       return false;
     }
+    if (!formData.base_salary || parseFloat(formData.base_salary) < 0) {
+      toast.error("Please enter a valid base salary");
+      return false;
+    }
     return true;
   };
 
@@ -237,10 +197,8 @@ const UserManagement = () => {
 
     try {
       if (editingUser) {
-        // Update user
         await updateUser(editingUser.user_id);
       } else {
-        // Add new user
         await addUser();
       }
     } catch (error) {
@@ -251,88 +209,146 @@ const UserManagement = () => {
     }
   };
 
-  const addUser = async () => {
+  const handleTargetSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.base_salary || parseFloat(formData.base_salary) < 0) {
+      toast.error("Please enter a valid base salary");
+      return;
+    }
+
+    setLoading(true);
+
     try {
-      const userData = {
-        full_name: formData.full_name,
-        email: formData.email,
-        phone: formData.phone,
-        role: formData.role,
-        date_of_birth: formData.date_of_birth || null,
-        gender: formData.gender || null
-      };
-
-      console.log('Sending data:', userData);
-
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/auth/admin/register`, {
-        method: 'POST',
+      const response = await fetch(`${API_BASE_URL}/users/${selectedUser.user_id}`, {
+        method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(userData)
+        body: JSON.stringify({
+          base_salary: parseFloat(formData.base_salary),
+          target_amount: parseFloat(formData.target_amount) || 0,
+          incentive_percentage: parseFloat(formData.incentive_percentage) || 0,
+          full_name: selectedUser.full_name,
+          email: selectedUser.email,
+          phone: selectedUser.phone,
+          role: selectedUser.role,
+          status: selectedUser.status,
+          gender: selectedUser.gender,
+          date_of_birth: selectedUser.date_of_birth
+        })
       });
 
-      console.log('Response status:', response.status);
-      
       const data = await response.json();
-      console.log('Response data:', data);
 
       if (response.ok) {
-        toast.success("User added successfully");
-        closeModal();
+        toast.success("Salary and target updated successfully");
+        closeTargetModal();
         fetchUsers();
       } else {
-        toast.error(data.message || data.errors?.[0]?.msg || "Failed to add user");
+        toast.error(data.message || "Failed to update salary and target");
       }
     } catch (error) {
-      console.error('Error adding user:', error);
+      console.error('Error updating salary:', error);
       toast.error("Network error. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const updateUser = async (userId) => {
-    try {
-      const submitData = new FormData();
-      submitData.append('full_name', formData.full_name);
-      submitData.append('email', formData.email);
-      submitData.append('phone', formData.phone);
+  const addUser = async () => {
+  try {
+    const submitData = new FormData();
+    submitData.append('full_name', formData.full_name);
+    submitData.append('email', formData.email);
+    submitData.append('phone', formData.phone);
+    submitData.append('role', formData.role);
+    submitData.append('base_salary', formData.base_salary);
+    submitData.append('target_amount', formData.target_amount || '0');
+    submitData.append('incentive_percentage', formData.incentive_percentage || '0');
+    
+    if (formData.date_of_birth) {
+      submitData.append('date_of_birth', formData.date_of_birth);
+    }
+    if (formData.gender) {
       submitData.append('gender', formData.gender);
-      submitData.append('role', formData.role);
-      submitData.append('status', formData.status);
-      
-      if (formData.date_of_birth) {
-        submitData.append('date_of_birth', formData.date_of_birth);
-      }
-      
-      if (formData.profile_image) {
-        submitData.append('image', formData.profile_image);
-      }
-
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: submitData
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        toast.success("User updated successfully");
-        closeModal();
-        fetchUsers();
-      } else {
-        toast.error(data.message || "Failed to update user");
-      }
-    } catch (error) {
-      console.error('Error updating user:', error);
-      toast.error("Network error. Please try again.");
     }
-  };
+    if (formData.profile_image) {
+      submitData.append('image', formData.profile_image);
+    }
+
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/auth/admin/register`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+        // Don't set Content-Type for FormData, let browser set it with boundary
+      },
+      body: submitData
+    });
+    
+    const data = await response.json();
+
+    if (response.ok) {
+      toast.success("User added successfully");
+      closeModal();
+      fetchUsers();
+    } else {
+      toast.error(data.message || data.errors?.[0]?.msg || "Failed to add user");
+    }
+  } catch (error) {
+    console.error('Error adding user:', error);
+    toast.error("Network error. Please try again.");
+  }
+};
+
+// Update the updateUser function to ensure all fields are included
+const updateUser = async (userId) => {
+  try {
+    const submitData = new FormData();
+    submitData.append('full_name', formData.full_name);
+    submitData.append('email', formData.email);
+    submitData.append('phone', formData.phone);
+    submitData.append('gender', formData.gender || '');
+    submitData.append('role', formData.role);
+    submitData.append('status', formData.status);
+    submitData.append('base_salary', formData.base_salary);
+    submitData.append('target_amount', formData.target_amount || '0');
+    submitData.append('incentive_percentage', formData.incentive_percentage || '0');
+    
+    if (formData.date_of_birth) {
+      submitData.append('date_of_birth', formData.date_of_birth);
+    }
+    
+    if (formData.profile_image) {
+      submitData.append('image', formData.profile_image);
+    }
+
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: submitData
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      toast.success("User updated successfully");
+      closeModal();
+      fetchUsers();
+    } else {
+      toast.error(data.message || "Failed to update user");
+    }
+  } catch (error) {
+    console.error('Error updating user:', error);
+    toast.error("Network error. Please try again.");
+  }
+};
 
   const handleDelete = async (userId) => {
     if (!window.confirm("Are you sure you want to delete this user?")) {
@@ -350,7 +366,7 @@ const UserManagement = () => {
 
       if (response.ok) {
         toast.success("User deleted successfully");
-        fetchUsers(); // Refresh user list
+        fetchUsers();
       } else {
         const data = await response.json();
         toast.error(data.message || "Failed to delete user");
@@ -361,154 +377,23 @@ const UserManagement = () => {
     }
   };
 
-  // Calendar component for attendance
-  const AttendanceCalendar = ({ attendance }) => {
-    const currentDate = new Date();
-    const currentMonth = currentDate.getMonth();
-    const currentYear = currentDate.getFullYear();
-    
-    const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
-    const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0);
-    const startingDayOfWeek = firstDayOfMonth.getDay();
-    
-    const daysInMonth = lastDayOfMonth.getDate();
-    const days = [];
-
-    // Create attendance map for quick lookup
-    const attendanceMap = {};
-    attendance.forEach(record => {
-      const date = new Date(record.attendance_date).getDate();
-      attendanceMap[date] = record.status;
-    });
-
-    // Add empty cells for days before the first day of month
-    for (let i = 0; i < startingDayOfWeek; i++) {
-      days.push(null);
+  // Calculate incentive amount for display
+  const calculateIncentiveAmount = () => {
+    if (formData.target_amount && formData.incentive_percentage) {
+      return (parseFloat(formData.target_amount) * parseFloat(formData.incentive_percentage)) / 100;
     }
-
-    // Add days of the month
-    for (let day = 1; day <= daysInMonth; day++) {
-      days.push(day);
-    }
-
-    const getStatusColor = (status) => {
-      switch (status) {
-        case 'present': return 'bg-green-500';
-        case 'absent': return 'bg-red-500';
-        case 'half_day': return 'bg-yellow-500';
-        case 'late': return 'bg-orange-500';
-        case 'holiday': return 'bg-blue-500';
-        default: return 'bg-gray-200';
-      }
-    };
-
-    const getStatusTooltip = (status) => {
-      switch (status) {
-        case 'present': return 'Present';
-        case 'absent': return 'Absent';
-        case 'half_day': return 'Half Day';
-        case 'late': return 'Late';
-        case 'holiday': return 'Holiday';
-        default: return 'No Record';
-      }
-    };
-
-    return (
-      <div className="bg-white rounded-lg border p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-800">
-            {firstDayOfMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
-          </h3>
-          <Calendar className="w-5 h-5 text-gray-600" />
-        </div>
-        
-        <div className="grid grid-cols-7 gap-1 mb-2">
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-            <div key={day} className="text-center text-xs font-medium text-gray-500 py-1">
-              {day}
-            </div>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-7 gap-1">
-          {days.map((day, index) => (
-            <div
-              key={index}
-              className={`h-8 rounded flex items-center justify-center text-sm relative ${
-                day ? 'border border-gray-200' : ''
-              } ${
-                day === currentDate.getDate() ? 'ring-2 ring-blue-500 ring-inset' : ''
-              }`}
-            >
-              {day && (
-                <>
-                  <span className={`${attendanceMap[day] ? 'text-white font-medium' : 'text-gray-700'}`}>
-                    {day}
-                  </span>
-                  {attendanceMap[day] && (
-                    <div
-                      className={`absolute inset-0 rounded ${getStatusColor(attendanceMap[day])} opacity-80`}
-                      title={getStatusTooltip(attendanceMap[day])}
-                    ></div>
-                  )}
-                </>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* Legend */}
-        <div className="mt-4 flex flex-wrap gap-2 justify-center">
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-green-500 rounded"></div>
-            <span className="text-xs text-gray-600">Present</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-red-500 rounded"></div>
-            <span className="text-xs text-gray-600">Absent</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-yellow-500 rounded"></div>
-            <span className="text-xs text-gray-600">Half Day</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-orange-500 rounded"></div>
-            <span className="text-xs text-gray-600">Late</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-blue-500 rounded"></div>
-            <span className="text-xs text-gray-600">Holiday</span>
-          </div>
-        </div>
-      </div>
-    );
+    return 0;
   };
 
-  // Calculate attendance summary
-  const calculateAttendanceSummary = () => {
-    const summary = {
-      present: 0,
-      absent: 0,
-      half_day: 0,
-      late: 0,
-      holiday: 0,
-      total: userAttendance.length
-    };
-
-    userAttendance.forEach(record => {
-      if (summary.hasOwnProperty(record.status)) {
-        summary[record.status]++;
-      }
-    });
-
-    return summary;
+  // Calculate potential final salary
+  const calculatePotentialSalary = () => {
+    const baseSalary = parseFloat(formData.base_salary) || 0;
+    const incentive = calculateIncentiveAmount();
+    return baseSalary + incentive;
   };
-
-  const attendanceSummary = calculateAttendanceSummary();
 
   return (
     <div className="min-h-screen bg-gray-50 py-6">
-      {/* Toast Container */}
       <ToastContainer
         position="top-right"
         autoClose={3000}
@@ -567,7 +452,9 @@ const UserManagement = () => {
                   <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Email</th>
                   <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Phone</th>
                   <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Role</th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Gender</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Base Salary</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Target</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Incentive</th>
                   <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Actions</th>
                 </tr>
@@ -591,12 +478,21 @@ const UserManagement = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-gray-700">{user.phone || "N/A"}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                        user.role === "admin" ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800"
+                        user.role === "admin" ? "bg-purple-100 text-purple-800" : 
+                        user.role === "manager" ? "bg-orange-100 text-orange-800" : "bg-blue-100 text-blue-800"
                       }`}>
                         {user.role}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-700">{user.gender}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-700 font-medium">
+                      ₹{parseFloat(user.base_salary || 0).toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-700">
+                      {user.target_amount ? `₹${parseFloat(user.target_amount).toLocaleString()}` : "No target"}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-700">
+                      {user.incentive_percentage ? `${user.incentive_percentage}%` : "No incentive"}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                         user.status === "active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
@@ -614,15 +510,15 @@ const UserManagement = () => {
                           <Eye className="w-5 h-5" />
                         </button>
                         <button
-  onClick={() => setUserSalary(user.user_id, user.base_salary)}
-  className="text-green-600 hover:text-green-800 transition-colors"
-  title="Set Salary"
->
-  <DollarSign className="w-5 h-5" />
-</button>
+                          onClick={() => openTargetModal(user)}
+                          className="text-purple-600 hover:text-purple-800 transition-colors"
+                          title="Set Salary & Target"
+                        >
+                          <Target className="w-5 h-5" />
+                        </button>
                         <button
                           onClick={() => openModal(user)}
-                          className="text-blue-600 hover:text-blue-800 transition-colors"
+                          className="text-yellow-600 hover:text-yellow-800 transition-colors"
                           title="Edit User"
                         >
                           <Edit2 className="w-5 h-5" />
@@ -646,8 +542,8 @@ const UserManagement = () => {
 
       {/* Add/Edit User Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white z-10">
               <h3 className="text-2xl font-bold text-gray-800">
                 {editingUser ? "Edit User" : "Add New User"}
@@ -657,7 +553,7 @@ const UserManagement = () => {
               </button>
             </div>
 
-            <div className="p-6">
+            <form onSubmit={handleSubmit} className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Full Name */}
                 <div>
@@ -671,6 +567,7 @@ const UserManagement = () => {
                     onChange={handleInputChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Enter full name"
+                    required
                   />
                 </div>
 
@@ -687,6 +584,7 @@ const UserManagement = () => {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Enter email"
                     disabled={editingUser}
+                    required
                   />
                 </div>
 
@@ -702,6 +600,60 @@ const UserManagement = () => {
                     onChange={handleInputChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Enter phone number"
+                    required
+                  />
+                </div>
+
+                {/* Base Salary */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Base Salary (₹) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    name="base_salary"
+                    value={formData.base_salary}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter base salary"
+                    min="0"
+                    step="0.01"
+                    required
+                  />
+                </div>
+
+                {/* Target Amount */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Target Amount (₹)
+                  </label>
+                  <input
+                    type="number"
+                    name="target_amount"
+                    value={formData.target_amount}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter target amount"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+
+                {/* Incentive Percentage */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Incentive Percentage (%)
+                  </label>
+                  <input
+                    type="number"
+                    name="incentive_percentage"
+                    value={formData.incentive_percentage}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter incentive percentage"
+                    min="0"
+                    max="100"
+                    step="0.01"
                   />
                 </div>
 
@@ -739,39 +691,78 @@ const UserManagement = () => {
 
                 {/* Role */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Role <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    name="role"
-                    value={formData.role}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="customer">Customer</option>
-                    <option value="admin">Admin</option>
-                    <option value="manager">Manager</option>
-                  </select>
-                </div>
+  <label className="block text-sm font-semibold text-gray-700 mb-2">
+    Role <span className="text-red-500">*</span>
+  </label>
+  <select
+    name="role"
+    value={formData.role}
+    onChange={handleInputChange}
+    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+    required
+  >
+    <option value="employee">Employee</option>
+    <option value="admin">Admin</option>
+    <option value="manager">Manager</option>
+    {/* <option value="customer">Customer</option> */}
+  </select>
+</div>
 
                 {/* Status */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Status
-                  </label>
-                  <select
-                    name="status"
-                    value={formData.status}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                    <option value="suspended">Suspended</option>
-                    <option value="banned">Banned</option>
-                  </select>
-                </div>
+                {editingUser && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Status
+                    </label>
+                    <select
+                      name="status"
+                      value={formData.status}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                      <option value="suspended">Suspended</option>
+                      <option value="banned">Banned</option>
+                    </select>
+                  </div>
+                )}
               </div>
+
+              {/* Salary Calculation Preview */}
+              {(formData.base_salary || formData.target_amount) && (
+                <div className="mt-6 p-4 bg-gray-50 rounded-lg border">
+                  <h4 className="font-semibold text-gray-800 mb-3">Salary Calculation Preview</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="text-center">
+                      <div className="text-sm text-gray-600">Base Salary</div>
+                      <div className="text-lg font-bold text-blue-600">
+                        ₹{parseFloat(formData.base_salary || 0).toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-sm text-gray-600">Potential Incentive</div>
+                      <div className="text-lg font-bold text-green-600">
+                        ₹{calculateIncentiveAmount().toLocaleString()}
+                      </div>
+                      {formData.target_amount && formData.incentive_percentage && (
+                        <div className="text-xs text-gray-500">
+                          {formData.incentive_percentage}% of ₹{parseFloat(formData.target_amount).toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-center">
+                      <div className="text-sm text-gray-600">Potential Final Salary</div>
+                      <div className="text-lg font-bold text-purple-600">
+                        ₹{calculatePotentialSalary().toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2 text-center">
+                    Final Salary = Base Salary + Incentive (when sales target is met)
+                  </p>
+                </div>
+              )}
 
               {/* Profile Image */}
               <div className="mt-6">
@@ -807,6 +798,7 @@ const UserManagement = () => {
               {/* Action Buttons */}
               <div className="mt-8 flex justify-end gap-3">
                 <button
+                  type="button"
                   onClick={closeModal}
                   disabled={loading}
                   className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors disabled:opacity-50"
@@ -814,7 +806,7 @@ const UserManagement = () => {
                   Cancel
                 </button>
                 <button
-                  onClick={handleSubmit}
+                  type="submit"
                   disabled={loading}
                   className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
@@ -822,12 +814,139 @@ const UserManagement = () => {
                   {editingUser ? "Update User" : "Add User"}
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       )}
 
-      
+      {/* Target & Salary Modal */}
+      {isTargetModalOpen && selectedUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-gray-800">
+                Set Salary & Target
+              </h3>
+              <button onClick={closeTargetModal} className="text-gray-500 hover:text-gray-700">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <form onSubmit={handleTargetSubmit} className="p-6">
+              <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                <h4 className="font-semibold text-blue-800">User: {selectedUser.full_name}</h4>
+                <p className="text-sm text-blue-600">Email: {selectedUser.email}</p>
+              </div>
+
+              <div className="space-y-4">
+                {/* Base Salary */}
+                {/* In the modal form, update the base salary field to ensure it's properly handled */}
+<div>
+  <label className="block text-sm font-semibold text-gray-700 mb-2">
+    Base Salary (₹) <span className="text-red-500">*</span>
+  </label>
+  <input
+    type="number"
+    name="base_salary"
+    value={formData.base_salary}
+    onChange={handleInputChange}
+    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+    placeholder="Enter base salary"
+    min="0"
+    step="0.01"
+    required
+  />
+</div>
+
+{/* Make sure target_amount and incentive_percentage are included */}
+<div>
+  <label className="block text-sm font-semibold text-gray-700 mb-2">
+    Target Amount (₹)
+  </label>
+  <input
+    type="number"
+    name="target_amount"
+    value={formData.target_amount}
+    onChange={handleInputChange}
+    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+    placeholder="Enter target amount"
+    min="0"
+    step="0.01"
+  />
+</div>
+
+<div>
+  <label className="block text-sm font-semibold text-gray-700 mb-2">
+    Incentive Percentage (%)
+  </label>
+  <input
+    type="number"
+    name="incentive_percentage"
+    value={formData.incentive_percentage}
+    onChange={handleInputChange}
+    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+    placeholder="Enter incentive percentage"
+    min="0"
+    max="100"
+    step="0.01"
+  />
+</div>
+
+                {/* Salary Calculation Preview */}
+                {(formData.base_salary || formData.target_amount) && (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <TrendingUp className="w-4 h-4 text-green-600" />
+                      <span className="text-sm font-medium text-green-800">Salary Calculation</span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-sm">
+                        <span>Base Salary:</span>
+                        <span className="font-medium">₹{parseFloat(formData.base_salary || 0).toLocaleString()}</span>
+                      </div>
+                      {formData.target_amount && formData.incentive_percentage && (
+                        <>
+                          <div className="flex justify-between text-sm">
+                            <span>Potential Incentive:</span>
+                            <span className="font-medium">₹{calculateIncentiveAmount().toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between text-sm font-bold">
+                            <span>Potential Final Salary:</span>
+                            <span>₹{calculatePotentialSalary().toLocaleString()}</span>
+                          </div>
+                          <p className="text-xs text-green-600 mt-1">
+                            When sales reach ₹{parseFloat(formData.target_amount).toLocaleString()}, 
+                            incentive will be {formData.incentive_percentage}%
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={closeTargetModal}
+                  disabled={loading}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Update
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
