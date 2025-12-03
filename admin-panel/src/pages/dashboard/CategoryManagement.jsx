@@ -192,6 +192,7 @@ const CategoryManagement = () => {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [loading, setLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
+  const [orgId, setOrgId] = useState(null); 
 
   const [formData, setFormData] = useState({
     category_name: "",
@@ -203,18 +204,36 @@ const CategoryManagement = () => {
     display_order: 0
   });
 
-  useEffect(() => {
-    fetchCategories();
-  }, []);
+   useEffect(() => {
+  const storedUser = localStorage.getItem('user');
 
-  const fetchCategories = useCallback(async () => {
+  if (storedUser) {
+    const userObj = JSON.parse(storedUser);   
+    const orgId = userObj.org_id;             
+
+    console.log(orgId, 'ORG ID');
+    setOrgId(orgId);
+    fetchCategories(orgId);
+  }
+}, []);
+
+
+ const fetchCategories = useCallback(async (orgId) => {
+    if (!orgId) return;
+    
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:5000/api/categories");
+      const res = await fetch("http://localhost:5000/api/categories", {
+        headers: {
+          'x-org-id': orgId,
+          // If using JWT auth, include authorization header
+          // 'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
       const data = await res.json();
       if (data.success) setCategories(data.data);
     } catch (e) {
-      console.error("Error fetching:", e);
+      console.error("Error fetching categories:", e);
     }
     setLoading(false);
   }, []);
@@ -283,8 +302,9 @@ const CategoryManagement = () => {
   // -----------------------------
   // CRUD OPERATIONS
   // -----------------------------
-  const handleAdd = useCallback(async () => {
+   const handleAdd = useCallback(async () => {
     if (!formData.category_name.trim()) return alert("Category name required!");
+    if (!orgId) return alert("Organization not found!");
 
     setLoading(true);
 
@@ -303,13 +323,17 @@ const CategoryManagement = () => {
 
       const res = await fetch("http://localhost:5000/api/categories", {
         method: "POST",
+        headers: {
+          'x-org-id': orgId,
+          // If using auth: 'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
         body: fd
       });
 
       const data = await res.json();
       if (data.success) {
         closeAddModal();
-        fetchCategories();
+        fetchCategories(orgId);
       } else {
         alert(data.message);
       }
@@ -319,72 +343,105 @@ const CategoryManagement = () => {
     }
 
     setLoading(false);
-  }, [formData, fetchCategories, closeAddModal]);
-
+  }, [formData, orgId, fetchCategories, closeAddModal]);
   const handleEdit = useCallback(async () => {
-    if (!formData.category_name.trim()) return alert("Category name required!");
+  if (!formData.category_name.trim()) return alert("Category name required!");
 
-    setLoading(true);
+  setLoading(true);
 
-    try {
-      const fd = new FormData();
-      fd.append('category_name', formData.category_name);
-      fd.append('slug', formData.slug);
-      fd.append('description', formData.description);
-      fd.append('is_active', formData.is_active);
-      fd.append('show_in_menu', formData.show_in_menu);
-      fd.append('display_order', formData.display_order);
-      
-      if (formData.image) {
-        fd.append("image", formData.image);
+  try {
+    // Read org id directly from localStorage
+    const storedUser = localStorage.getItem("user");
+    const orgId = storedUser ? JSON.parse(storedUser).org_id : null;
+console.log(orgId, 'ORG IvfD');
+    if (!orgId) {
+      alert("Organization not found!");
+      setLoading(false);
+      return;
+    }
+
+    const fd = new FormData();
+    fd.append("category_name", formData.category_name);
+    fd.append("slug", formData.slug);
+    fd.append("description", formData.description);
+    fd.append("is_active", formData.is_active);
+    fd.append("show_in_menu", formData.show_in_menu);
+    fd.append("display_order", formData.display_order);
+
+    if (formData.image) {
+      fd.append("image", formData.image);
+    }
+
+    // Add org_id for backend validation
+    fd.append("org_id", orgId);
+
+    const res = await fetch(
+      `http://localhost:5000/api/categories/${selectedCategory.category_id}`,
+      {
+        method: "PUT",
+        headers: {
+          "x-org-id": orgId
+        },
+        body: fd
       }
+    );
 
-      const res = await fetch(
-        `http://localhost:5000/api/categories/${selectedCategory.category_id}`,
-        {
-          method: "PUT",
-          body: fd
+    const data = await res.json();
+    if (data.success) {
+      closeEditModal();
+      fetchCategories(orgId);
+    } else {
+      alert(data.message);
+    }
+  } catch (e) {
+    console.error("Edit error:", e);
+    alert("Error updating category");
+  }
+
+  setLoading(false);
+}, [formData, selectedCategory, fetchCategories, closeEditModal]);
+
+
+ const handleDelete = useCallback(async () => {
+  setLoading(true);
+
+  try {
+    // Get org_id from localStorage
+    const storedUser = localStorage.getItem("user");
+    const orgId = storedUser ? JSON.parse(storedUser).org_id : null;
+
+    if (!orgId) {
+      alert("Organization not found!");
+      setLoading(false);
+      return;
+    }
+
+    const res = await fetch(
+      `http://localhost:5000/api/categories/${selectedCategory.category_id}`,
+      {
+        method: "DELETE",
+        headers: {
+          "x-org-id": orgId,
         }
-      );
-
-      const data = await res.json();
-      if (data.success) {
-        closeEditModal();
-        fetchCategories();
-      } else {
-        alert(data.message);
       }
-    } catch (e) {
-      console.error("Edit error:", e);
-      alert("Error updating category");
+    );
+
+    const data = await res.json();
+
+    if (data.success) {
+      closeDeleteModal();
+      fetchCategories(orgId);
+    } else {
+      alert(data.message);
     }
+  } catch (e) {
+    console.error("Delete error:", e);
+    alert("Error deleting category");
+  }
 
-    setLoading(false);
-  }, [formData, selectedCategory, fetchCategories, closeEditModal]);
+  setLoading(false);
+}, [selectedCategory, fetchCategories, closeDeleteModal]);
 
-  const handleDelete = useCallback(async () => {
-    setLoading(true);
-
-    try {
-      const res = await fetch(
-        `http://localhost:5000/api/categories/${selectedCategory.category_id}`,
-        { method: "DELETE" }
-      );
-      const data = await res.json();
-
-      if (data.success) {
-        closeDeleteModal();
-        fetchCategories();
-      } else {
-        alert(data.message);
-      }
-    } catch (e) {
-      console.error("Delete error:", e);
-      alert("Error deleting category");
-    }
-
-    setLoading(false);
-  }, [selectedCategory, fetchCategories, closeDeleteModal]);
 
   // -----------------------------
   // OPEN MODALS

@@ -70,23 +70,25 @@ exports.getProduct = asyncHandler(async (req, res) => {
   });
 });
 
-// In product.controller.js - getAllProducts function
 exports.getAllProducts = asyncHandler(async (req, res) => {
+  const orgId = req.user?.org_id || req.headers['x-org-id'];
   const { page = 1, limit = 100, category_id, search, min_price, max_price, is_featured } = req.query;
   const offset = (page - 1) * limit;
+
+  if (!orgId) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Organization ID is required' 
+    });
+  }
 
   let query = `
     SELECT p.*, c.category_name 
     FROM products p 
     LEFT JOIN categories c ON p.category_id = c.category_id 
-    WHERE 1=1
+    WHERE p.org_id = ? AND c.org_id = ?
   `;
-  const params = [];
-
-  // Remove the is_active filter temporarily for debugging
-  // if (req.query.include_inactive !== 'true') {
-  //   query += ' AND p.is_active = TRUE';
-  // }
+  const params = [orgId, orgId];
 
   if (category_id) {
     query += ' AND p.category_id = ?';
@@ -111,9 +113,6 @@ exports.getAllProducts = asyncHandler(async (req, res) => {
   query += ' ORDER BY p.created_at DESC LIMIT ? OFFSET ?';
   params.push(parseInt(limit), parseInt(offset));
 
-  console.log('Products query:', query);
-  console.log('Params:', params);
-
   const [products] = await db.query(query, params);
 
   // Get images for each product
@@ -123,14 +122,11 @@ exports.getAllProducts = asyncHandler(async (req, res) => {
       [product.product_id]
     );
     product.images = images;
-    console.log(`Product ${product.product_id} has ${images.length} images`);
   }
 
-  console.log('Total products found:', products.length);
-
-  // Get total count
-  let countQuery = 'SELECT COUNT(*) as total FROM products WHERE 1=1';
-  const countParams = [];
+  // Get total count with organization filter
+  let countQuery = 'SELECT COUNT(*) as total FROM products WHERE org_id = ?';
+  const countParams = [orgId];
   
   if (category_id) {
     countQuery += ' AND category_id = ?';
@@ -152,14 +148,30 @@ exports.getAllProducts = asyncHandler(async (req, res) => {
   });
 });
 
+
 // @desc    Update product
 // @route   PUT /api/products/:id
 exports.updateProduct = asyncHandler(async (req, res) => {
   const { id } = req.params;
+  const orgId = req.user?.org_id || req.headers['x-org-id'];
 
-  const [products] = await db.query('SELECT * FROM products WHERE product_id = ?', [id]);
+  if (!orgId) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Organization ID is required' 
+    });
+  }
+
+  const [products] = await db.query(
+    'SELECT * FROM products WHERE product_id = ? AND org_id = ?', 
+    [id, orgId]
+  );
+  
   if (products.length === 0) {
-    return res.status(404).json({ success: false, message: 'Product not found' });
+    return res.status(404).json({ 
+      success: false, 
+      message: 'Product not found in your organization' 
+    });
   }
 
   const existingProduct = products[0];
@@ -298,16 +310,23 @@ exports.updateProduct = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Create product
+// @desc    Create product for current organization
 // @route   POST /api/products
 exports.createProduct = asyncHandler(async (req, res) => {
+  const orgId = req.user?.org_id || req.headers['x-org-id'];
+  
+  if (!orgId) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Organization ID is required' 
+    });
+  }
+
   // Check if the request contains form data or JSON
   let productData;
   if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
-    // Handle form data
     productData = req.body;
   } else {
-    // Handle JSON data
     productData = req.body;
   }
 
@@ -318,10 +337,27 @@ exports.createProduct = asyncHandler(async (req, res) => {
     is_featured, is_bestseller, is_new_arrival, is_on_sale
   } = productData;
 
-  // Check if SKU already exists
-  const [existingSku] = await db.query('SELECT product_id FROM products WHERE sku = ?', [sku]);
+  // Check if category belongs to same organization
+  const [categoryCheck] = await db.query(
+    'SELECT category_id FROM categories WHERE category_id = ? AND org_id = ?',
+    [category_id, orgId]
+  );
+  
+  if (categoryCheck.length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'Category does not belong to your organization'
+    });
+  }
+
+  // Check if SKU already exists in same organization
+  const [existingSku] = await db.query(
+    'SELECT product_id FROM products WHERE sku = ? AND org_id = ?', 
+    [sku, orgId]
+  );
+  
   if (existingSku.length > 0) {
-    return res.status(400).json({ success: false, message: 'SKU already exists' });
+    return res.status(400).json({ success: false, message: 'SKU already exists in your organization' });
   }
 
   const [result] = await db.query(
@@ -329,8 +365,8 @@ exports.createProduct = asyncHandler(async (req, res) => {
       product_name, slug, sku, category_id, brand, description, 
       short_description, price, compare_price, cost_price, material, 
       color, dimensions, weight, stock_quantity, low_stock_threshold,
-      is_featured, is_bestseller, is_new_arrival, is_on_sale
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      is_featured, is_bestseller, is_new_arrival, is_on_sale, org_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       product_name, slug, sku, category_id, brand, description, 
       short_description, price, compare_price, cost_price, material, 
@@ -338,7 +374,8 @@ exports.createProduct = asyncHandler(async (req, res) => {
       is_featured === 'true' || is_featured === true,
       is_bestseller === 'true' || is_bestseller === true,
       is_new_arrival === 'true' || is_new_arrival === true,
-      is_on_sale === 'true' || is_on_sale === true
+      is_on_sale === 'true' || is_on_sale === true,
+      orgId
     ]
   );
 
@@ -355,7 +392,11 @@ exports.createProduct = asyncHandler(async (req, res) => {
   }
 
   // Get the created product with images
-  const [products] = await db.query('SELECT * FROM products WHERE product_id = ?', [productId]);
+  const [products] = await db.query(
+    'SELECT * FROM products WHERE product_id = ? AND org_id = ?', 
+    [productId, orgId]
+  );
+  
   const [images] = await db.query(
     'SELECT * FROM product_images WHERE product_id = ? ORDER BY display_order',
     [productId]
@@ -370,6 +411,7 @@ exports.createProduct = asyncHandler(async (req, res) => {
     } 
   });
 });
+
 
 // @desc    Delete product
 // @route   DELETE /api/products/:id

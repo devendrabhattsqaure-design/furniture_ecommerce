@@ -41,6 +41,6 @@ router.get('/me', protect, getMe);
 router.post('/logout', protect, logout);
 
 // Add uploadProfile middleware for admin register
-router.post('/admin/register', protect, authorize('admin'), uploadProfile.single('image'), adminRegisterValidation, registerAdmin);
+router.post('/admin/register', protect, authorize('admin','super_admin'), uploadProfile.single('image'), adminRegisterValidation, registerAdmin);
 
 module.exports = router;

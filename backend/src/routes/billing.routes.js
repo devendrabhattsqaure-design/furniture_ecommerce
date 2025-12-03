@@ -6,7 +6,7 @@ const {
   getAllBills,
   getBill,
   searchProducts,
-  getBillingStatistics
+  getBillingStatistics,updatePayment
 } = require('../controllers/billing.controller');
 const { protect, authorize } = require('../middlewares/auth.middleware');
 
@@ -15,5 +15,6 @@ router.get('/', protect, getAllBills);
 router.get('/statistics', protect, getBillingStatistics);
 router.get('/products/search', protect, searchProducts);
 router.get('/:id', protect, getBill);
+router.put('/:id/payment', protect, updatePayment); // Add this route
 
 module.exports = router;

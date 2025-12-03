@@ -10,6 +10,8 @@ const ProductManagement = () => {
   const [images, setImages] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
   const [existingImages, setExistingImages] = useState([]);
+  const [orgId, setOrgId] = useState(null);
+
   const [formData, setFormData] = useState({
     product_name: '',
     slug: '',
@@ -34,15 +36,29 @@ const ProductManagement = () => {
     is_active: true
   });
 
-  // Fetch products and categories
-  useEffect(() => {
-    fetchProducts();
-    fetchCategories();
-  }, []);
+ 
+ useEffect(() => {
+  const storedUser = localStorage.getItem('user');
 
-  const fetchProducts = async () => {
+  if (storedUser) {
+    const userObj = JSON.parse(storedUser);   
+    const orgId = userObj.org_id;             
+
+    console.log(orgId, 'ORG ID');
+    setOrgId(orgId);
+    fetchProducts(orgId)
+    fetchCategories(orgId);
+  }
+}, []);
+
+
+  const fetchProducts = async (orgId) => {
     try {
-      const response = await fetch('http://localhost:5000/api/products');
+      const response = await fetch('http://localhost:5000/api/products', {
+        headers: {
+          'x-org-id': orgId
+        }
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch products');
       }
@@ -57,9 +73,13 @@ const ProductManagement = () => {
     }
   };
 
-  const fetchCategories = async () => {
+  const fetchCategories = async (orgId) => {
     try {
-      const response = await fetch('http://localhost:5000/api/categories');
+      const response = await fetch('http://localhost:5000/api/categories', {
+        headers: {
+          'x-org-id': orgId
+        }
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch categories');
       }
@@ -71,6 +91,92 @@ const ProductManagement = () => {
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    if (!orgId) {
+      alert('Organization not found!');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const formDataToSend = new FormData();
+      
+      // Append all form data
+      Object.keys(formData).forEach(key => {
+        formDataToSend.append(key, formData[key]);
+      });
+
+      // Append images
+      images.forEach(image => {
+        formDataToSend.append('images', image);
+      });
+
+      const url = editingProduct 
+        ? `http://localhost:5000/api/products/${editingProduct.product_id}`
+        : 'http://localhost:5000/api/products';
+      
+      const method = editingProduct ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'x-org-id': orgId
+        },
+        body: formDataToSend,
+      });
+
+      const result = await response.json();
+      console.log('Backend response:', result);
+
+      if (result.success) {
+        console.log('Product saved successfully:', result.data);
+        
+        // Refresh the products list
+        await fetchProducts(orgId);
+        
+        setShowModal(false);
+        setEditingProduct(null);
+        setFormData({
+          product_name: '',
+          slug: '',
+          sku: '',
+          category_id: '',
+          brand: '',
+          description: '',
+          short_description: '',
+          price: '',
+          compare_price: '',
+          cost_price: '',
+          material: '',
+          color: '',
+          dimensions: '',
+          weight: '',
+          stock_quantity: '',
+          low_stock_threshold: '10',
+          is_featured: false,
+          is_bestseller: false,
+          is_new_arrival: false,
+          is_on_sale: false,
+          is_active: true
+        });
+        setImages([]);
+        setImagePreviews([]);
+        setExistingImages([]);
+        
+      } else {
+        alert(result.message || 'Error saving product');
+      }
+    } catch (error) {
+      console.error('Error saving product:', error);
+      alert('Error saving product');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -108,87 +214,7 @@ const ProductManagement = () => {
     setExistingImages(newExistingImages);
   };
 
-  // Temporary debug version - add this to see what's happening
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-
-  try {
-    const formDataToSend = new FormData();
-    
-    // Append all form data
-    Object.keys(formData).forEach(key => {
-      formDataToSend.append(key, formData[key]);
-    });
-
-    // Append images
-    images.forEach(image => {
-      formDataToSend.append('images', image);
-    });
-
-    const url = editingProduct 
-      ? `http://localhost:5000/api/products/${editingProduct.product_id}`
-      : 'http://localhost:5000/api/products';
-    
-    const method = editingProduct ? 'PUT' : 'POST';
-
-    console.log('Sending request to:', url);
-    console.log('Method:', method);
-
-    const response = await fetch(url, {
-      method,
-      body: formDataToSend,
-    });
-
-    const result = await response.json();
-    console.log('Backend response:', result);
-
-    if (result.success) {
-      console.log('Product saved successfully:', result.data);
-      
-      // Refresh the products list
-      await fetchProducts();
-      
-      setShowModal(false);
-      setEditingProduct(null);
-      setFormData({
-        product_name: '',
-        slug: '',
-        sku: '',
-        category_id: '',
-        brand: '',
-        description: '',
-        short_description: '',
-        price: '',
-        compare_price: '',
-        cost_price: '',
-        material: '',
-        color: '',
-        dimensions: '',
-        weight: '',
-        stock_quantity: '',
-        low_stock_threshold: '10',
-        is_featured: false,
-        is_bestseller: false,
-        is_new_arrival: false,
-        is_on_sale: false,
-        is_active: true
-      });
-      setImages([]);
-      setImagePreviews([]);
-      setExistingImages([]);
-      
-    } else {
-      alert(result.message || 'Error saving product');
-    }
-  } catch (error) {
-    console.error('Error saving product:', error);
-    alert('Error saving product');
-  } finally {
-    setLoading(false);
-  }
-};
-
+  
  const handleEdit = async (product) => {
     try {
       // Fetch the complete product data with images

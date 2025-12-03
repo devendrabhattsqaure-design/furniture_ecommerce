@@ -1,3 +1,4 @@
+// backend/src/middlewares/auth.middleware.js
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
 const asyncHandler = require('express-async-handler');
@@ -22,9 +23,12 @@ exports.protect = asyncHandler(async (req, res, next) => {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Get user from database
+    // Get user from database with organization info
     const [users] = await db.query(
-      'SELECT user_id, email, full_name, role, status FROM users WHERE user_id = ?',
+      `SELECT u.*, o.org_name, o.org_logo 
+       FROM users u 
+       LEFT JOIN organizations o ON u.org_id = o.org_id 
+       WHERE u.user_id = ?`,
       [decoded.id]
     );
 
@@ -48,11 +52,16 @@ exports.protect = asyncHandler(async (req, res, next) => {
     req.user = {
       id: user.user_id,
       email: user.email,
-      role: user.role
+      full_name: user.full_name,
+      role: user.role,
+      org_id: user.org_id,
+      org_name: user.org_name,
+      org_logo: user.org_logo
     };
 
     next();
   } catch (error) {
+    console.error('Token verification error:', error);
     return res.status(401).json({
       success: false,
       message: 'Not authorized to access this route'
@@ -62,6 +71,13 @@ exports.protect = asyncHandler(async (req, res, next) => {
 
 exports.authorize = (...roles) => {
   return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+    }
+
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
@@ -70,4 +86,28 @@ exports.authorize = (...roles) => {
     }
     next();
   };
+};
+
+// Middleware for organization access control
+exports.authorizeOrgAccess = () => {
+  return asyncHandler(async (req, res, next) => {
+    const user = req.user;
+    
+    // Super admin has access to everything
+    if (user.role === 'super_admin') {
+      return next();
+    }
+
+    // Check if user is trying to access their own organization
+    const orgId = req.params.orgId || req.body.org_id || req.query.org_id;
+    
+    if (orgId && parseInt(orgId) !== parseInt(user.org_id)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied to this organization'
+      });
+    }
+
+    next();
+  });
 };

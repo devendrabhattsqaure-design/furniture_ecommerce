@@ -3,6 +3,8 @@ import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Dashboard, Auth } from "@/layouts";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { MaterialTailwindControllerProvider } from "@/context";
+import { ThemeProvider } from "@material-tailwind/react";
 
 // Protected Route component
 const ProtectedRoute = ({ children }) => {
@@ -19,7 +21,7 @@ const ProtectedRoute = ({ children }) => {
   return isAuthenticated ? children : <Navigate to="/auth/sign-in" replace />;
 };
 
-// Public Route component (redirect to dashboard if already authenticated)
+// Public Route component
 const PublicRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
 
@@ -31,12 +33,13 @@ const PublicRoute = ({ children }) => {
     );
   }
 
-  return !isAuthenticated ? children : <Navigate to="/auth/sign-in" replace />;
+  return !isAuthenticated ? children : <Navigate to="/dashboard/home" replace />;
 };
 
 function AppContent() {
   return (
     <Routes>
+      {/* Dashboard Routes - Protected */}
       <Route 
         path="/dashboard/*" 
         element={
@@ -45,6 +48,8 @@ function AppContent() {
           </ProtectedRoute>
         } 
       />
+      
+      {/* Auth Routes - Public */}
       <Route 
         path="/auth/*" 
         element={
@@ -53,6 +58,8 @@ function AppContent() {
           </PublicRoute>
         } 
       />
+      
+      {/* Default Routes */}
       <Route path="/" element={<Navigate to="/dashboard/home" replace />} />
       <Route path="*" element={<Navigate to="/dashboard/home" replace />} />
     </Routes>
@@ -62,9 +69,13 @@ function AppContent() {
 function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
+      <ThemeProvider>
+        <MaterialTailwindControllerProvider>
+          <AuthProvider>
+            <AppContent />
+          </AuthProvider>
+        </MaterialTailwindControllerProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }

@@ -20,6 +20,7 @@ import { SignIn, SignUp } from "@/pages/auth";
 
 // Import all management components
 import UserManagement from "@/pages/dashboard/UserManagement";
+import OrganizationManagement from "@/pages/dashboard/OrganizationManagement";
 import BillingManagement from "@/pages/dashboard/BillingManagement";
 import AttendanceManagement from "./pages/dashboard/AttendanceManagement";
 import ProductManagement from "@/pages/dashboard/ProductManagement";
@@ -115,6 +116,12 @@ const adminPages = [
     name: "user management",
     path: "/user-management",
     element: <UserManagement />,
+  },
+  {
+    icon: <ShoppingBagIcon {...icon} />,
+    name: "org management",
+    path: "/organization-management",
+    element: <OrganizationManagement />,
   },
   {
     icon: <ShoppingBagIcon {...icon} />,

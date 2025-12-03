@@ -1,7 +1,7 @@
 const db = require('../config/database');
 const asyncHandler = require('express-async-handler');
 
-// @desc    Mark attendance for multiple users with sales amount
+// @desc    Mark attendance for multiple users with sales amount - WITH ORG CHECK
 // @route   POST /api/attendance/mark-bulk
 exports.markBulkAttendance = asyncHandler(async (req, res) => {
   const { attendance_date, attendances } = req.body;
@@ -12,6 +12,15 @@ exports.markBulkAttendance = asyncHandler(async (req, res) => {
       message: 'attendance_date and attendances array are required'
     });
   }
+
+  // Get current user's organization
+  const [currentUser] = await db.query(
+    'SELECT org_id, role FROM users WHERE user_id = ?',
+    [req.user.id]
+  );
+
+  const currentUserOrgId = currentUser[0]?.org_id;
+  const isSuperAdmin = req.user.role === 'super_admin';
 
   const results = {
     success: [],
@@ -30,12 +39,27 @@ exports.markBulkAttendance = asyncHandler(async (req, res) => {
         continue;
       }
 
-      // Check if user exists
-      const [users] = await db.query('SELECT user_id FROM users WHERE user_id = ?', [user_id]);
+      // Check if user exists AND belongs to same organization (unless super admin)
+      const [users] = await db.query(
+        'SELECT user_id, org_id FROM users WHERE user_id = ?',
+        [user_id]
+      );
+      
       if (users.length === 0) {
         results.errors.push({
           user_id,
           error: 'User not found'
+        });
+        continue;
+      }
+
+      const userOrgId = users[0].org_id;
+
+      // Check organization permission
+      if (!isSuperAdmin && userOrgId !== currentUserOrgId) {
+        results.errors.push({
+          user_id,
+          error: 'You can only mark attendance for users in your organization'
         });
         continue;
       }
@@ -66,11 +90,11 @@ exports.markBulkAttendance = asyncHandler(async (req, res) => {
       );
 
       if (existing.length > 0) {
-        // Update existing attendance - only update sales_amount and other basic fields
+        // Update existing attendance
         await db.query(
           `UPDATE attendance 
            SET status = ?, work_hours = ?, notes = ?, marked_by = ?, 
-               sales_amount = ?, updated_at = NOW() 
+               sales_amount = ?, org_id = ?, updated_at = NOW() 
            WHERE attendance_id = ?`,
           [
             status, 
@@ -78,15 +102,16 @@ exports.markBulkAttendance = asyncHandler(async (req, res) => {
             notes, 
             req.user.id, 
             parseFloat(sales_amount) || 0,
+            userOrgId,
             existing[0].attendance_id
           ]
         );
       } else {
-        // Create new attendance record - only store sales_amount
+        // Create new attendance record
         await db.query(
           `INSERT INTO attendance (
-            user_id, attendance_date, status, work_hours, notes, marked_by, sales_amount
-          ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            user_id, attendance_date, status, work_hours, notes, marked_by, sales_amount, org_id
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             user_id, 
             attendance_date, 
@@ -94,7 +119,8 @@ exports.markBulkAttendance = asyncHandler(async (req, res) => {
             finalWorkHours, 
             notes, 
             req.user.id,
-            parseFloat(sales_amount) || 0
+            parseFloat(sales_amount) || 0,
+            userOrgId
           ]
         );
       }
@@ -122,7 +148,7 @@ exports.markBulkAttendance = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Mark attendance for a user with sales amount
+// @desc    Mark attendance for a user with sales amount - WITH ORG CHECK
 // @route   POST /api/attendance/mark
 exports.markAttendance = asyncHandler(async (req, res) => {
   const { user_id, attendance_date, status, work_hours, notes, sales_amount } = req.body;
@@ -135,12 +161,34 @@ exports.markAttendance = asyncHandler(async (req, res) => {
     });
   }
 
+  // Get current user's organization
+  const [currentUser] = await db.query(
+    'SELECT org_id, role FROM users WHERE user_id = ?',
+    [req.user.id]
+  );
+
   // Check if user exists
-  const [users] = await db.query('SELECT user_id FROM users WHERE user_id = ?', [user_id]);
+  const [users] = await db.query(
+    'SELECT user_id, org_id FROM users WHERE user_id = ?',
+    [user_id]
+  );
+  
   if (users.length === 0) {
     return res.status(404).json({
       success: false,
       message: 'User not found'
+    });
+  }
+
+  const userOrgId = users[0].org_id;
+  const currentUserOrgId = currentUser[0]?.org_id;
+  const isSuperAdmin = req.user.role === 'super_admin';
+
+  // Check organization permission
+  if (!isSuperAdmin && userOrgId !== currentUserOrgId) {
+    return res.status(403).json({
+      success: false,
+      message: 'You can only mark attendance for users in your organization'
     });
   }
 
@@ -173,26 +221,26 @@ exports.markAttendance = asyncHandler(async (req, res) => {
   );
 
   if (existing.length > 0) {
-    // Update existing attendance - only sales_amount
+    // Update existing attendance
     await db.query(
       `UPDATE attendance 
        SET status = ?, work_hours = ?, notes = ?, marked_by = ?, 
-           sales_amount = ?, updated_at = NOW() 
+           sales_amount = ?, org_id = ?, updated_at = NOW() 
        WHERE attendance_id = ?`,
-      [status, finalWorkHours, notes, req.user.id, parseFloat(sales_amount) || 0, existing[0].attendance_id]
+      [status, finalWorkHours, notes, req.user.id, parseFloat(sales_amount) || 0, userOrgId, existing[0].attendance_id]
     );
   } else {
-    // Create new attendance record - only sales_amount
+    // Create new attendance record
     await db.query(
-      `INSERT INTO attendance (user_id, attendance_date, status, work_hours, notes, marked_by, sales_amount) 
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [user_id, attendance_date, status, finalWorkHours, notes, req.user.id, parseFloat(sales_amount) || 0]
+      `INSERT INTO attendance (user_id, attendance_date, status, work_hours, notes, marked_by, sales_amount, org_id) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [user_id, attendance_date, status, finalWorkHours, notes, req.user.id, parseFloat(sales_amount) || 0, userOrgId]
     );
   }
 
   // Get the updated/created record
   const [attendance] = await db.query(
-    `SELECT a.*, u.full_name, u.email, u.role,
+    `SELECT a.*, u.full_name, u.email, u.role, u.org_id,
             marker.full_name as marked_by_name
      FROM attendance a 
      JOIN users u ON a.user_id = u.user_id 
@@ -208,7 +256,7 @@ exports.markAttendance = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Calculate monthly salary for a user with incentive based on sales
+// @desc    Calculate monthly salary for a user with incentive based on sales - WITH ORG CHECK
 // @route   GET /api/attendance/salary/:user_id
 exports.calculateMonthlySalary = asyncHandler(async (req, res) => {
   const { user_id } = req.params;
@@ -221,9 +269,18 @@ exports.calculateMonthlySalary = asyncHandler(async (req, res) => {
     });
   }
 
+  // Get current user's organization
+  const [currentUser] = await db.query(
+    'SELECT org_id, role FROM users WHERE user_id = ?',
+    [req.user.id]
+  );
+
+  const currentUserOrgId = currentUser[0]?.org_id;
+  const isSuperAdmin = req.user.role === 'super_admin';
+
   // Get user details including base salary, target and incentive percentage
   const [users] = await db.query(
-    'SELECT user_id, full_name, base_salary, target_amount, incentive_percentage FROM users WHERE user_id = ?', 
+    'SELECT user_id, full_name, base_salary, target_amount, incentive_percentage, org_id FROM users WHERE user_id = ?', 
     [user_id]
   );
   if (users.length === 0) {
@@ -234,6 +291,15 @@ exports.calculateMonthlySalary = asyncHandler(async (req, res) => {
   }
 
   const user = users[0];
+
+  // Check organization permission
+  if (!isSuperAdmin && user.org_id !== currentUserOrgId) {
+    return res.status(403).json({
+      success: false,
+      message: 'You can only access salary data for users in your organization'
+    });
+  }
+
   const baseSalary = user.base_salary || 0;
   const targetAmount = user.target_amount || 0;
   const incentivePercentage = user.incentive_percentage || 0;
@@ -295,7 +361,7 @@ exports.calculateMonthlySalary = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get user attendance with salary calculation for specific month
+// @desc    Get user attendance with salary calculation for specific month - WITH ORG CHECK
 // @route   GET /api/attendance/user/:user_id
 exports.getUserAttendanceWithSalary = asyncHandler(async (req, res) => {
   const { user_id } = req.params;
@@ -308,9 +374,18 @@ exports.getUserAttendanceWithSalary = asyncHandler(async (req, res) => {
     });
   }
 
+  // Get current user's organization
+  const [currentUser] = await db.query(
+    'SELECT org_id, role FROM users WHERE user_id = ?',
+    [req.user.id]
+  );
+
+  const currentUserOrgId = currentUser[0]?.org_id;
+  const isSuperAdmin = req.user.role === 'super_admin';
+
   // Get user details
   const [users] = await db.query(
-    'SELECT user_id, full_name, email, role, base_salary, target_amount, incentive_percentage FROM users WHERE user_id = ?',
+    'SELECT user_id, full_name, email, role, base_salary, target_amount, incentive_percentage, org_id FROM users WHERE user_id = ?',
     [user_id]
   );
 
@@ -323,10 +398,18 @@ exports.getUserAttendanceWithSalary = asyncHandler(async (req, res) => {
 
   const user = users[0];
 
+  // Check organization permission
+  if (!isSuperAdmin && user.org_id !== currentUserOrgId) {
+    return res.status(403).json({
+      success: false,
+      message: 'You can only access attendance data for users in your organization'
+    });
+  }
+
   // Get attendance for the specific month
   const [attendance] = await db.query(
     `SELECT attendance_id, user_id, attendance_date, status, work_hours, notes,
-            sales_amount, marked_by, created_at, updated_at
+            sales_amount, marked_by, created_at, updated_at, org_id
      FROM attendance 
      WHERE user_id = ? AND MONTH(attendance_date) = ? AND YEAR(attendance_date) = ? 
      ORDER BY attendance_date`,
@@ -352,7 +435,7 @@ exports.getUserAttendanceWithSalary = asyncHandler(async (req, res) => {
     totalSales += parseFloat(record.sales_amount || 0);
   });
 
-  // NEW: Calculate attendance deductions based on the CORRECT policy
+  // Calculate attendance deductions based on the policy
   const dailySalary = user.base_salary / 30; // Assuming 30 days month
   
   // Policy: Either 1 free absent OR 2 free half days (2 half days = 1 absent)
@@ -364,7 +447,7 @@ exports.getUserAttendanceWithSalary = asyncHandler(async (req, res) => {
   // Calculate deductible equivalent absents
   let totalDeductibleEquivalentAbsents = Math.max(0, totalEquivalentAbsents - freeEquivalentAbsents);
   
-  // Calculate total deduction (can be fractional for half days)
+  // Calculate total deduction
   const totalDeduction = totalDeductibleEquivalentAbsents * dailySalary;
 
   // Calculate incentive based on monthly sales vs target
@@ -400,7 +483,7 @@ exports.getUserAttendanceWithSalary = asyncHandler(async (req, res) => {
     targetAchieved: targetAchieved,
     attendancePolicy: {
       freeAllowance: "1 absent OR 2 half days",
-      halfDayConversion: 2 // 2 half days = 1 absent
+      halfDayConversion: 2
     }
   };
 
@@ -412,8 +495,7 @@ exports.getUserAttendanceWithSalary = asyncHandler(async (req, res) => {
   });
 });
 
-// The following functions remain mostly the same, just remove salary fields from queries
-// @desc    Get my attendance
+// @desc    Get my attendance - User's own attendance
 // @route   GET /api/attendance/my-attendance
 exports.getMyAttendance = asyncHandler(async (req, res) => {
   const { month, year, start_date, end_date, status } = req.query;
@@ -470,11 +552,20 @@ exports.getMyAttendance = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get all attendance (Admin/Manager)
+// @desc    Get all attendance (Admin/Manager) - WITH ORG FILTERING
 // @route   GET /api/attendance
 exports.getAllAttendance = asyncHandler(async (req, res) => {
   const { user_id, month, year, start_date, end_date, status, page = 1, limit = 20 } = req.query;
   
+  // Get current user's organization
+  const [currentUser] = await db.query(
+    'SELECT org_id, role FROM users WHERE user_id = ?',
+    [req.user.id]
+  );
+
+  const currentUserOrgId = currentUser[0]?.org_id;
+  const isSuperAdmin = req.user.role === 'super_admin';
+
   let query = `
     SELECT a.*, u.full_name, u.email, u.role,
            marker.full_name as marked_by_name
@@ -484,6 +575,12 @@ exports.getAllAttendance = asyncHandler(async (req, res) => {
     WHERE 1=1
   `;
   const params = [];
+
+  // Filter by organization if not super admin
+  if (!isSuperAdmin && currentUserOrgId) {
+    query += ' AND a.org_id = ?';
+    params.push(currentUserOrgId);
+  }
 
   if (user_id) {
     query += ' AND a.user_id = ?';
@@ -525,11 +622,20 @@ exports.getAllAttendance = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get attendance summary
+// @desc    Get attendance summary - WITH ORG FILTERING
 // @route   GET /api/attendance/summary
 exports.getAttendanceSummary = asyncHandler(async (req, res) => {
   const { user_id, month, year, start_date, end_date } = req.query;
   
+  // Get current user's organization
+  const [currentUser] = await db.query(
+    'SELECT org_id, role FROM users WHERE user_id = ?',
+    [req.user.id]
+  );
+
+  const currentUserOrgId = currentUser[0]?.org_id;
+  const isSuperAdmin = req.user.role === 'super_admin';
+
   let query = `
     SELECT 
       COUNT(*) as total_days,
@@ -545,6 +651,12 @@ exports.getAttendanceSummary = asyncHandler(async (req, res) => {
     WHERE 1=1
   `;
   const params = [];
+
+  // Filter by organization if not super admin
+  if (!isSuperAdmin && currentUserOrgId) {
+    query += ' AND org_id = ?';
+    params.push(currentUserOrgId);
+  }
 
   if (user_id) {
     query += ' AND user_id = ?';
@@ -572,10 +684,40 @@ exports.getAttendanceSummary = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Delete attendance record
+// @desc    Delete attendance record - WITH ORG CHECK
 // @route   DELETE /api/attendance/:id
 exports.deleteAttendance = asyncHandler(async (req, res) => {
   const { id } = req.params;
+
+  // Get current user's organization
+  const [currentUser] = await db.query(
+    'SELECT org_id, role FROM users WHERE user_id = ?',
+    [req.user.id]
+  );
+
+  const currentUserOrgId = currentUser[0]?.org_id;
+  const isSuperAdmin = req.user.role === 'super_admin';
+
+  // Check attendance record's organization
+  const [attendanceRecord] = await db.query(
+    'SELECT * FROM attendance WHERE attendance_id = ?',
+    [id]
+  );
+
+  if (attendanceRecord.length === 0) {
+    return res.status(404).json({
+      success: false,
+      message: 'Attendance record not found'
+    });
+  }
+
+  // Check organization permission
+  if (!isSuperAdmin && attendanceRecord[0].org_id !== currentUserOrgId) {
+    return res.status(403).json({
+      success: false,
+      message: 'You can only delete attendance records for your organization'
+    });
+  }
 
   const [result] = await db.query('DELETE FROM attendance WHERE attendance_id = ?', [id]);
 
@@ -592,17 +734,37 @@ exports.deleteAttendance = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get users for attendance marking
+// @desc    Get users for attendance marking - WITH ORG FILTERING
 // @route   GET /api/attendance/users
 exports.getUsersForAttendance = asyncHandler(async (req, res) => {
   const { date } = req.query;
   
-  const [users] = await db.query(
-    `SELECT user_id, email, full_name, phone, role, status, base_salary, target_amount, incentive_percentage
-     FROM users 
-     WHERE status = 'active' AND role IN ('employee', 'manager', 'admin')
-     ORDER BY full_name ASC`
+  // Get current user's organization
+  const [currentUser] = await db.query(
+    'SELECT org_id, role FROM users WHERE user_id = ?',
+    [req.user.id]
   );
+
+  const currentUserOrgId = currentUser[0]?.org_id;
+  const isSuperAdmin = req.user.role === 'super_admin';
+
+  let query = `
+    SELECT user_id, email, full_name, phone, role, status, base_salary, target_amount, incentive_percentage, org_id
+    FROM users 
+    WHERE status = 'active' AND role IN ('employee', 'manager', 'admin')
+  `;
+  
+  const params = [];
+
+  // Filter by organization if not super admin
+  if (!isSuperAdmin && currentUserOrgId) {
+    query += ' AND org_id = ?';
+    params.push(currentUserOrgId);
+  }
+
+  query += ' ORDER BY full_name ASC';
+
+  const [users] = await db.query(query, params);
 
   // If date provided, include attendance status for that date
   if (date) {

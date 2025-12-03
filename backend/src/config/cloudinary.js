@@ -33,6 +33,13 @@ const categoryStorage = new CloudinaryStorage({
     allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
   },
 });
+const organizationStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'furniture-store/organizations',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+  },
+});
 
 exports.uploadProduct = multer({ 
   storage: productStorage,
@@ -60,6 +67,10 @@ const blogStorage = new CloudinaryStorage({
 
 exports.uploadBlog = multer({ 
   storage: blogStorage,
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
+exports.uploadLogo = multer({ 
+  storage: organizationStorage,
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 

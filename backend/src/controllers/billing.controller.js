@@ -1,9 +1,22 @@
 const db = require('../config/database');
 const asyncHandler = require('express-async-handler');
 
-// @desc    Create a new bill
-// @route   POST /api/bills
+// Helper to get organization ID
+const getOrgId = (req) => {
+  return req.user?.org_id || req.headers['x-org-id'] || null;
+};
+
+// Update the createBill function to handle partial payments
 exports.createBill = asyncHandler(async (req, res) => {
+  const orgId = getOrgId(req);
+  
+  if (!orgId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Organization ID is required'
+    });
+  }
+
   const { 
     customer_name, 
     customer_phone, 
@@ -15,10 +28,12 @@ exports.createBill = asyncHandler(async (req, res) => {
     tax_amount, 
     tax_percentage,
     payment_method,
-    notes
+    notes,
+    paid_amount, // Add this
+    due_date // Add this
   } = req.body;
 
-  // Validation
+  // Validation (existing code remains)
   if (!customer_name || !items || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({
       success: false,
@@ -26,7 +41,22 @@ exports.createBill = asyncHandler(async (req, res) => {
     });
   }
 
-  // Calculate totals
+  // Get organization details (existing code)
+  const [orgs] = await db.query(
+    'SELECT * FROM organizations WHERE org_id = ?',
+    [orgId]
+  );
+  
+  if (orgs.length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'Organization not found'
+    });
+  }
+
+  const organization = orgs[0];
+
+  // Calculate totals - FIXED CALCULATION
   let subtotal = 0;
   let totalQuantity = 0;
 
@@ -41,20 +71,20 @@ exports.createBill = asyncHandler(async (req, res) => {
 
     // Get product price and stock
     const [products] = await db.query(
-      'SELECT product_name, price, stock_quantity FROM products WHERE product_id = ?',
-      [item.product_id]
+      'SELECT product_name, price, stock_quantity FROM products WHERE product_id = ? AND org_id = ?',
+      [item.product_id, orgId]
     );
 
     if (products.length === 0) {
       return res.status(400).json({
         success: false,
-        message: `Product with ID ${item.product_id} not found`
+        message: `Product with ID ${item.product_id} not found in your organization`
       });
     }
 
     const product = products[0];
     
-    // Check stock availability
+    // Check stock
     if (product.stock_quantity < item.quantity) {
       return res.status(400).json({
         success: false,
@@ -62,9 +92,19 @@ exports.createBill = asyncHandler(async (req, res) => {
       });
     }
 
-    const itemTotal = product.price * item.quantity;
+    const itemTotal = parseFloat(product.price) * parseInt(item.quantity); // Ensure proper type conversion
     subtotal += itemTotal;
-    totalQuantity += item.quantity;
+    totalQuantity += parseInt(item.quantity);
+  }
+
+  // Apply tax
+  let tax = 0;
+  if (tax_amount) {
+    tax = parseFloat(tax_amount);
+  } else if (tax_percentage) {
+    tax = (subtotal * parseFloat(tax_percentage)) / 100;
+  } else if (organization.gst_percentage > 0) {
+    tax = (subtotal * parseFloat(organization.gst_percentage)) / 100;
   }
 
   // Calculate discount
@@ -75,78 +115,96 @@ exports.createBill = asyncHandler(async (req, res) => {
     discount = (subtotal * parseFloat(discount_percentage)) / 100;
   }
 
-  // Calculate tax
-  let tax = 0;
-  if (tax_amount) {
-    tax = parseFloat(tax_amount);
-  } else if (tax_percentage) {
-    tax = (subtotal * parseFloat(tax_percentage)) / 100;
+  const total_amount = parseFloat((subtotal - discount + tax).toFixed(2));
+  
+  // Handle payment
+  const paidAmount = parseFloat(paid_amount || total_amount);
+  const dueAmount = parseFloat((total_amount - paidAmount).toFixed(2));
+  
+  let payment_status = 'paid';
+  if (dueAmount === total_amount) {
+    payment_status = 'pending';
+  } else if (dueAmount > 0) {
+    payment_status = 'partial';
   }
 
-  const total_amount = subtotal - discount + tax;
+  // Generate bill number (existing code)
+  const generateBillNumber = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const random4 = Math.floor(1000 + Math.random() * 9000);
+    const orgPrefix = organization.org_name.substring(0, 3).toUpperCase();
+    return `${orgPrefix}-${year}${month}${day}-${random4}`;
+  };
 
-  // Generate bill number (you can customize this logic)
-  const billNumber = `BILL-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const billNumber = generateBillNumber();
 
   // Start transaction
   const connection = await db.getConnection();
   await connection.beginTransaction();
 
   try {
-    // Create bill
+    // Create bill with payment fields
     const [billResult] = await connection.query(
       `INSERT INTO bills (
         bill_number, customer_name, customer_phone, customer_email, customer_address,
         subtotal, discount_amount, tax_amount, total_amount, total_quantity,
-        payment_method, notes, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        payment_method, notes, created_by, org_id,
+        paid_amount, due_amount, payment_status, due_date
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         billNumber,
         customer_name,
         customer_phone || null,
         customer_email || null,
         customer_address || null,
-        subtotal,
-        discount,
-        tax,
+        subtotal.toFixed(2),
+        discount.toFixed(2),
+        tax.toFixed(2),
         total_amount,
         totalQuantity,
         payment_method || 'cash',
         notes || null,
-        req.user.id
+        req.user.id,
+        orgId,
+        paidAmount.toFixed(2),
+        dueAmount.toFixed(2),
+        payment_status,
+        due_date || null
       ]
     );
 
     const billId = billResult.insertId;
 
-    // Create bill items and update product stock
+    // Create bill items (existing code)
     for (const item of items) {
-      // Get product details
       const [products] = await connection.query(
-        'SELECT product_name, price, stock_quantity FROM products WHERE product_id = ?',
-        [item.product_id]
+        'SELECT product_name, price, stock_quantity FROM products WHERE product_id = ? AND org_id = ?',
+        [item.product_id, orgId]
       );
       const product = products[0];
 
-      // Create bill item
       await connection.query(
         `INSERT INTO bill_items (
-          bill_id, product_id, product_name, quantity, unit_price, total_price
-        ) VALUES (?, ?, ?, ?, ?, ?)`,
+          bill_id, product_id, product_name, quantity, unit_price, total_price, org_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           billId,
           item.product_id,
           product.product_name,
           item.quantity,
-          product.price,
-          product.price * item.quantity
+          parseFloat(product.price).toFixed(2),
+          (parseFloat(product.price) * parseInt(item.quantity)).toFixed(2),
+          orgId
         ]
       );
 
       // Update product stock
       await connection.query(
-        'UPDATE products SET stock_quantity = stock_quantity - ? WHERE product_id = ?',
-        [item.quantity, item.product_id]
+        'UPDATE products SET stock_quantity = stock_quantity - ? WHERE product_id = ? AND org_id = ?',
+        [item.quantity, item.product_id, orgId]
       );
     }
 
@@ -154,20 +212,21 @@ exports.createBill = asyncHandler(async (req, res) => {
     await connection.commit();
     connection.release();
 
-    // Get the complete bill with items
+    // Get the complete bill
     const [bills] = await db.query(`
-      SELECT b.*, u.full_name as created_by_name
+      SELECT b.*, u.full_name as created_by_name, o.*
       FROM bills b
       LEFT JOIN users u ON b.created_by = u.user_id
-      WHERE b.bill_id = ?
-    `, [billId]);
+      LEFT JOIN organizations o ON b.org_id = o.org_id
+      WHERE b.bill_id = ? AND b.org_id = ?
+    `, [billId, orgId]);
 
     const [billItems] = await db.query(`
       SELECT bi.*, p.product_name, p.sku
       FROM bill_items bi
       LEFT JOIN products p ON bi.product_id = p.product_id
-      WHERE bi.bill_id = ?
-    `, [billId]);
+      WHERE bi.bill_id = ? AND bi.org_id = ?
+    `, [billId, orgId]);
 
     const billData = {
       ...bills[0],
@@ -181,7 +240,6 @@ exports.createBill = asyncHandler(async (req, res) => {
     });
 
   } catch (error) {
-    // Rollback transaction in case of error
     await connection.rollback();
     connection.release();
     
@@ -193,9 +251,109 @@ exports.createBill = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Get all bills
+// Update your billing.controller.js - updatePayment function
+exports.updatePayment = asyncHandler(async (req, res) => {
+  const orgId = getOrgId(req);
+  const { id } = req.params;
+  const { paid_amount, payment_amount } = req.body;
+
+  if (!orgId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Organization ID is required'
+    });
+  }
+
+  if (!paid_amount || paid_amount < 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'Valid paid amount is required'
+    });
+  }
+
+  // Get current bill
+  const [bills] = await db.query(
+    'SELECT * FROM bills WHERE bill_id = ? AND org_id = ?',
+    [id, orgId]
+  );
+
+  if (bills.length === 0) {
+    return res.status(404).json({
+      success: false,
+      message: 'Bill not found'
+    });
+  }
+
+  const bill = bills[0];
+  const newPaidAmount = parseFloat(paid_amount);
+  const totalAmount = parseFloat(bill.total_amount);
+  const dueAmount = parseFloat((totalAmount - newPaidAmount).toFixed(2));
+  
+  // Validate paid amount
+  if (newPaidAmount > totalAmount) {
+    return res.status(400).json({
+      success: false,
+      message: `Paid amount cannot exceed total amount of ₹${totalAmount.toLocaleString('en-IN')}`
+    });
+  }
+  
+  let payment_status = 'paid';
+  if (dueAmount === totalAmount) {
+    payment_status = 'pending';
+  } else if (dueAmount > 0) {
+    payment_status = 'partial';
+  }
+
+  // Update payment
+  await db.query(
+    `UPDATE bills SET 
+      paid_amount = ?, 
+      due_amount = ?, 
+      payment_status = ?,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE bill_id = ? AND org_id = ?`,
+    [newPaidAmount.toFixed(2), dueAmount.toFixed(2), payment_status, id, orgId]
+  );
+
+  // Get updated bill
+  const [updatedBills] = await db.query(`
+    SELECT b.*, u.full_name as created_by_name, o.*
+    FROM bills b
+    LEFT JOIN users u ON b.created_by = u.user_id
+    LEFT JOIN organizations o ON b.org_id = o.org_id
+    WHERE b.bill_id = ? AND b.org_id = ?
+  `, [id, orgId]);
+
+  const [billItems] = await db.query(`
+    SELECT bi.*, p.product_name, p.sku, p.description
+    FROM bill_items bi
+    LEFT JOIN products p ON bi.product_id = p.product_id
+    WHERE bi.bill_id = ? AND bi.org_id = ?
+  `, [id, orgId]);
+
+  const billData = {
+    ...updatedBills[0],
+    items: billItems
+  };
+
+  res.json({
+    success: true,
+    message: 'Payment updated successfully',
+    data: billData
+  });
+});
+// @desc    Get all bills for current organization
 // @route   GET /api/bills
 exports.getAllBills = asyncHandler(async (req, res) => {
+  const orgId = getOrgId(req);
+  
+  if (!orgId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Organization ID is required'
+    });
+  }
+
   const { 
     page = 1, 
     limit = 20, 
@@ -212,9 +370,9 @@ exports.getAllBills = asyncHandler(async (req, res) => {
     SELECT b.*, u.full_name as created_by_name
     FROM bills b
     LEFT JOIN users u ON b.created_by = u.user_id
-    WHERE 1=1
+    WHERE b.org_id = ?
   `;
-  const params = [];
+  const params = [orgId];
 
   if (start_date && end_date) {
     query += ' AND DATE(b.created_at) BETWEEN ? AND ?';
@@ -247,14 +405,14 @@ exports.getAllBills = asyncHandler(async (req, res) => {
       SELECT bi.*, p.product_name, p.sku
       FROM bill_items bi
       LEFT JOIN products p ON bi.product_id = p.product_id
-      WHERE bi.bill_id = ?
-    `, [bill.bill_id]);
+      WHERE bi.bill_id = ? AND bi.org_id = ?
+    `, [bill.bill_id, orgId]);
     bill.items = items;
   }
 
-  // Get total count
-  let countQuery = 'SELECT COUNT(*) as total FROM bills WHERE 1=1';
-  const countParams = [];
+  // Get total count for the organization
+  let countQuery = 'SELECT COUNT(*) as total FROM bills WHERE org_id = ?';
+  const countParams = [orgId];
 
   if (start_date && end_date) {
     countQuery += ' AND DATE(created_at) BETWEEN ? AND ?';
@@ -281,22 +439,44 @@ exports.getAllBills = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Get single bill for current organization
+// @route   GET /api/bills/:id
 // @desc    Get single bill
 // @route   GET /api/bills/:id
 exports.getBill = asyncHandler(async (req, res) => {
   const { id } = req.params;
+  const orgId = getOrgId(req);
+
+  if (!orgId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Organization ID is required'
+    });
+  }
 
   const [bills] = await db.query(`
-    SELECT b.*, u.full_name as created_by_name
+    SELECT 
+      b.*, 
+      u.full_name as created_by_name,
+      o.org_name,
+      o.org_logo,
+      o.gst_number,
+      o.gst_type,
+      o.gst_percentage,
+      o.address as org_address,
+      o.contact_person_name,
+      o.primary_phone,
+      o.secondary_phone
     FROM bills b
     LEFT JOIN users u ON b.created_by = u.user_id
-    WHERE b.bill_id = ?
-  `, [id]);
+    LEFT JOIN organizations o ON b.org_id = o.org_id
+    WHERE b.bill_id = ? AND b.org_id = ?
+  `, [id, orgId]);
 
   if (bills.length === 0) {
     return res.status(404).json({
       success: false,
-      message: 'Bill not found'
+      message: 'Bill not found in your organization'
     });
   }
 
@@ -304,8 +484,8 @@ exports.getBill = asyncHandler(async (req, res) => {
     SELECT bi.*, p.product_name, p.sku, p.description
     FROM bill_items bi
     LEFT JOIN products p ON bi.product_id = p.product_id
-    WHERE bi.bill_id = ?
-  `, [id]);
+    WHERE bi.bill_id = ? AND bi.org_id = ?
+  `, [id, orgId]);
 
   const billData = {
     ...bills[0],
@@ -318,18 +498,26 @@ exports.getBill = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Search products for billing
+// @desc    Search products for billing within organization
 // @route   GET /api/bills/products/search
 exports.searchProducts = asyncHandler(async (req, res) => {
+  const orgId = getOrgId(req);
   const { search, category_id } = req.query;
+
+  if (!orgId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Organization ID is required'
+    });
+  }
 
   let query = `
     SELECT product_id, product_name, sku, price, stock_quantity, 
            description, category_id
     FROM products 
-    WHERE is_active = TRUE AND stock_quantity > 0
+    WHERE org_id = ? AND is_active = TRUE AND stock_quantity > 0
   `;
-  const params = [];
+  const params = [orgId];
 
   if (search) {
     query += ' AND (product_name LIKE ? OR sku LIKE ? OR description LIKE ?)';
@@ -352,10 +540,18 @@ exports.searchProducts = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get billing statistics
+// @desc    Get billing statistics for current organization
 // @route   GET /api/bills/statistics
 exports.getBillingStatistics = asyncHandler(async (req, res) => {
-  const { period = 'today' } = req.query; // today, week, month, year
+  const orgId = getOrgId(req);
+  const { period = 'today' } = req.query;
+
+  if (!orgId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Organization ID is required'
+    });
+  }
 
   let dateFilter = '';
   const currentDate = new Date();
@@ -377,7 +573,7 @@ exports.getBillingStatistics = asyncHandler(async (req, res) => {
       dateFilter = 'DATE(created_at) = CURDATE()';
   }
 
-  // Total sales
+  // Total sales for organization
   const [totalSales] = await db.query(`
     SELECT 
       COUNT(*) as total_bills,
@@ -385,28 +581,28 @@ exports.getBillingStatistics = asyncHandler(async (req, res) => {
       SUM(total_quantity) as total_items_sold,
       AVG(total_amount) as average_bill_value
     FROM bills 
-    WHERE ${dateFilter}
-  `);
+    WHERE org_id = ? AND ${dateFilter}
+  `, [orgId]);
 
-  // Today's bills count
+  // Today's bills count for organization
   const [todayBills] = await db.query(`
     SELECT COUNT(*) as count 
     FROM bills 
-    WHERE DATE(created_at) = CURDATE()
-  `);
+    WHERE org_id = ? AND DATE(created_at) = CURDATE()
+  `, [orgId]);
 
-  // Payment method distribution
+  // Payment method distribution for organization
   const [paymentMethods] = await db.query(`
     SELECT 
       payment_method,
       COUNT(*) as count,
       SUM(total_amount) as amount
     FROM bills 
-    WHERE ${dateFilter}
+    WHERE org_id = ? AND ${dateFilter}
     GROUP BY payment_method
-  `);
+  `, [orgId]);
 
-  // Top selling products
+  // Top selling products for organization
   const [topProducts] = await db.query(`
     SELECT 
       p.product_name,
@@ -415,11 +611,11 @@ exports.getBillingStatistics = asyncHandler(async (req, res) => {
     FROM bill_items bi
     JOIN products p ON bi.product_id = p.product_id
     JOIN bills b ON bi.bill_id = b.bill_id
-    WHERE ${dateFilter.replace('created_at', 'b.created_at')}
+    WHERE b.org_id = ? AND ${dateFilter.replace('created_at', 'b.created_at')}
     GROUP BY p.product_id, p.product_name
     ORDER BY total_sold DESC
     LIMIT 5
-  `);
+  `, [orgId]);
 
   const statistics = {
     total_bills: totalSales[0].total_bills || 0,
@@ -435,4 +631,4 @@ exports.getBillingStatistics = asyncHandler(async (req, res) => {
     success: true,
     data: statistics
   });
-});
+});       

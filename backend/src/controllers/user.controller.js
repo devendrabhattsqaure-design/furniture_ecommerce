@@ -1,97 +1,65 @@
-// backend/src/controllers/user.controller.js
 const db = require('../config/database');
 const bcrypt = require('bcryptjs');
 const asyncHandler = require('express-async-handler');
 
-
-// @desc    Create a new user
-// @route   POST /api/auth/admin/register
-exports.createUser = asyncHandler(async (req, res) => {
-  const { 
-    full_name, 
-    email, 
-    phone, 
-    role, 
-    date_of_birth, 
-    gender,
-    base_salary,
-    target_amount,
-    incentive_percentage
-  } = req.body;
-
-  // Validation
-  if (!full_name || !email || !phone || !role) {
-    return res.status(400).json({
-      success: false,
-      message: 'Full name, email, phone, and role are required'
-    });
-  }
-
-  // Check if user already exists
-  const [existingUsers] = await db.query('SELECT user_id FROM users WHERE email = ?', [email]);
-  if (existingUsers.length > 0) {
-    return res.status(400).json({
-      success: false,
-      message: 'User with this email already exists'
-    });
-  }
-
-  // Generate default password (name@12345)
-  const defaultPassword = `${full_name.split(' ')[0].toLowerCase()}@12345`;
-  const hashedPassword = await bcrypt.hash(defaultPassword, 10);
-
-  // Calculate incentive amount
-  const incentiveAmount = target_amount && incentive_percentage ? 
-    (parseFloat(target_amount) * parseFloat(incentive_percentage)) / 100 : 0;
-
-  // Handle profile image
-  let profileImage = null;
-  if (req.file) {
-    profileImage = req.file.path; // Cloudinary URL or file path
-  }
-
-  // Insert user with target and incentive
-  const [result] = await db.query(
-    `INSERT INTO users (full_name, email, password_hash, phone, role, date_of_birth, gender, 
-     base_salary, target_amount, incentive_percentage, incentive_amount, profile_image) 
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      full_name, 
-      email, 
-      hashedPassword, 
-      phone, 
-      role, 
-      date_of_birth || null, 
-      gender || null,
-      parseFloat(base_salary) || 0,
-      parseFloat(target_amount) || 0,
-      parseFloat(incentive_percentage) || 0,
-      incentiveAmount,
-      profileImage
-    ]
+// @desc    Get all users (Admin only) - Filtered by organization
+// @route   GET /api/users
+exports.getAllUsers = asyncHandler(async (req, res) => {
+  // Get the logged-in user's organization
+  const [currentUser] = await db.query(
+    'SELECT org_id, role FROM users WHERE user_id = ?',
+    [req.user.id]
   );
 
-  // Get the created user
-  const [users] = await db.query(
-    `SELECT user_id, email, full_name, phone, role, status, profile_image,
-            base_salary, target_amount, incentive_percentage, incentive_amount,
-            created_at 
-     FROM users WHERE user_id = ?`,
-    [result.insertId]
-  );
+  let query = `
+    SELECT user_id, email, full_name, phone, role, profile_image, status, 
+           email_verified, gender, date_of_birth, created_at, base_salary, 
+           target_amount, incentive_percentage, incentive_amount, org_id
+    FROM users 
+    WHERE 1=1
+  `;
+  
+  let params = [];
 
-  res.status(201).json({
-    success: true,
-    message: 'User created successfully',
-    user: users[0],
-    defaultPassword: defaultPassword
+  // If user is not super_admin, filter by organization
+  if (req.user.role !== 'super_admin') {
+    query += ' AND org_id = ?';
+    params.push(currentUser[0].org_id);
+  }
+
+  // Exclude super_admin from list if current user is not super_admin
+  if (req.user.role !== 'super_admin') {
+    query += ' AND role != "super_admin"';
+  }
+
+  query += ' ORDER BY created_at DESC';
+
+  const [users] = await db.query(query, params);
+  
+  // Get organization names for each user
+  const usersWithOrg = await Promise.all(users.map(async (user) => {
+    if (user.org_id) {
+      const [orgs] = await db.query(
+        'SELECT org_name FROM organizations WHERE org_id = ?',
+        [user.org_id]
+      );
+      return { ...user, org_name: orgs[0]?.org_name || null };
+    }
+    return { ...user, org_name: null };
+  }));
+
+  res.json({ 
+    success: true, 
+    count: usersWithOrg.length, 
+    users: usersWithOrg 
   });
 });
+
 // @desc    Get user profile
 // @route   GET /api/users/profile
 exports.getProfile = asyncHandler(async (req, res) => {
   const [users] = await db.query(
-    'SELECT user_id, email, full_name, phone, date_of_birth, gender, profile_image, role, status, email_verified, created_at, base_salary FROM users WHERE user_id = ?',
+    'SELECT user_id, email, full_name, phone, date_of_birth, gender, profile_image, role, status, email_verified, created_at, base_salary, org_id FROM users WHERE user_id = ?',
     [req.user.id]
   );
 
@@ -136,17 +104,7 @@ exports.uploadProfileImage = asyncHandler(async (req, res) => {
   res.json({ success: true, message: 'Profile image updated', user: users[0] });
 });
 
-// @desc    Get all users (Admin only)
-// @route   GET /api/users
-exports.getAllUsers = asyncHandler(async (req, res) => {
-  const [users] = await db.query(
-    'SELECT user_id, email, full_name, phone, role, profile_image, status, email_verified, gender, date_of_birth, created_at, base_salary, target_amount, incentive_percentage, incentive_amount FROM users ORDER BY created_at DESC'
-  );
-
-  res.json({ success: true, count: users.length, users });
-});
-
-// @desc    Update user
+// @desc    Update user (Admin only) - With organization check
 // @route   PUT /api/users/:id
 exports.updateUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -160,8 +118,15 @@ exports.updateUser = asyncHandler(async (req, res) => {
     gender,
     base_salary,
     target_amount,
-    incentive_percentage
+    incentive_percentage,
+    org_id
   } = req.body;
+
+  // Get current user's organization
+  const [currentUser] = await db.query(
+    'SELECT org_id, role FROM users WHERE user_id = ?',
+    [req.user.id]
+  );
 
   // Check if user exists
   const [existingUsers] = await db.query('SELECT * FROM users WHERE user_id = ?', [id]);
@@ -172,14 +137,31 @@ exports.updateUser = asyncHandler(async (req, res) => {
     });
   }
 
+  // Check if current user has permission to edit this user
+  // Super admin can edit anyone, others can only edit users in their organization
+  if (req.user.role !== 'super_admin' && 
+      existingUsers[0].org_id !== currentUser[0].org_id) {
+    return res.status(403).json({
+      success: false,
+      message: 'You can only edit users in your organization'
+    });
+  }
+
   // Calculate incentive amount
   const incentiveAmount = target_amount && incentive_percentage ? 
-    (parseFloat(target_amount) * parseFloat(incentive_percentage)) / 100 : 0;
+    (parseFloat(target_amount) * parseFloat(incentive_percentage)) / 100 : 
+    existingUsers[0].incentive_amount;
 
-  // Handle profile image upload
+  // Handle profile image
   let profileImage = existingUsers[0].profile_image;
   if (req.file) {
-    profileImage = req.file.path; // Cloudinary URL or file path
+    profileImage = req.file.path;
+  }
+
+  // Check organization assignment - only super admin can change organizations
+  let finalOrgId = existingUsers[0].org_id;
+  if (req.user.role === 'super_admin' && org_id) {
+    finalOrgId = org_id;
   }
 
   // Update user
@@ -188,7 +170,7 @@ exports.updateUser = asyncHandler(async (req, res) => {
      SET full_name = ?, email = ?, phone = ?, role = ?, status = ?, 
          date_of_birth = ?, gender = ?, profile_image = ?, 
          base_salary = ?, target_amount = ?, incentive_percentage = ?, incentive_amount = ?,
-         updated_at = NOW() 
+         org_id = ?, updated_at = NOW() 
      WHERE user_id = ?`,
     [
       full_name, 
@@ -203,16 +185,20 @@ exports.updateUser = asyncHandler(async (req, res) => {
       parseFloat(target_amount) || 0,
       parseFloat(incentive_percentage) || 0,
       incentiveAmount,
+      finalOrgId,
       id
     ]
   );
 
   // Get updated user
   const [users] = await db.query(
-    `SELECT user_id, email, full_name, phone, role, status, profile_image,
-            base_salary, target_amount, incentive_percentage, incentive_amount,
-            created_at, updated_at 
-     FROM users WHERE user_id = ?`,
+    `SELECT u.user_id, u.email, u.full_name, u.phone, u.role, u.status, u.profile_image,
+            u.base_salary, u.target_amount, u.incentive_percentage, u.incentive_amount,
+            u.created_at, u.updated_at, u.org_id,
+            o.org_name
+     FROM users u
+     LEFT JOIN organizations o ON u.org_id = o.org_id
+     WHERE u.user_id = ?`,
     [id]
   );
 
@@ -222,7 +208,8 @@ exports.updateUser = asyncHandler(async (req, res) => {
     user: users[0]
   });
 });
-// @desc    Set user base salary (Admin only)
+
+// @desc    Set user base salary (Admin only) - With organization check
 // @route   PUT /api/users/:id/salary
 exports.setUserSalary = asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -235,12 +222,27 @@ exports.setUserSalary = asyncHandler(async (req, res) => {
     });
   }
 
+  // Get current user's organization
+  const [currentUser] = await db.query(
+    'SELECT org_id, role FROM users WHERE user_id = ?',
+    [req.user.id]
+  );
+
   // Check if user exists
   const [existingUsers] = await db.query('SELECT * FROM users WHERE user_id = ?', [id]);
   if (existingUsers.length === 0) {
     return res.status(404).json({
       success: false,
       message: 'User not found'
+    });
+  }
+
+  // Check if current user has permission to edit this user
+  if (req.user.role !== 'super_admin' && 
+      existingUsers[0].org_id !== currentUser[0].org_id) {
+    return res.status(403).json({
+      success: false,
+      message: 'You can only edit users in your organization'
     });
   }
 
@@ -266,10 +268,6 @@ exports.setUserSalary = asyncHandler(async (req, res) => {
 // @route   PUT /api/users/profile
 exports.updateProfile = asyncHandler(async (req, res) => {
   const { full_name, phone, date_of_birth, gender } = req.body;
-
-  // Debug logging
-  console.log('Profile update data:', req.body);
-  console.log('Profile update file:', req.file);
 
   if (!full_name) {
     return res.status(400).json({
@@ -319,28 +317,65 @@ exports.updateProfile = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Delete user (Admin only)
+// @desc    Delete user (Admin only) - With organization check
 // @route   DELETE /api/users/:id
 exports.deleteUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
+  // Get current user's organization
+  const [currentUser] = await db.query(
+    'SELECT org_id, role FROM users WHERE user_id = ?',
+    [req.user.id]
+  );
+
+  // Check if user exists
+  const [existingUsers] = await db.query('SELECT * FROM users WHERE user_id = ?', [id]);
+  if (existingUsers.length === 0) {
+    return res.status(404).json({ 
+      success: false, 
+      message: 'User not found' 
+    });
+  }
+
+  // Check if current user has permission to delete this user
+  if (req.user.role !== 'super_admin' && 
+      existingUsers[0].org_id !== currentUser[0].org_id) {
+    return res.status(403).json({
+      success: false,
+      message: 'You can only delete users in your organization'
+    });
+  }
+
   const [result] = await db.query('DELETE FROM users WHERE user_id = ?', [id]);
 
   if (result.affectedRows === 0) {
-    return res.status(404).json({ success: false, message: 'User not found' });
+    return res.status(404).json({ 
+      success: false, 
+      message: 'User not found' 
+    });
   }
 
-  res.json({ success: true, message: 'User deleted successfully' });
+  res.json({ 
+    success: true, 
+    message: 'User deleted successfully' 
+  });
 });
-// @desc    Get single user by ID
+
+// @desc    Get single user by ID - With organization check
 // @route   GET /api/users/:id
 exports.getUserById = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
+  // Get current user's organization
+  const [currentUser] = await db.query(
+    'SELECT org_id, role FROM users WHERE user_id = ?',
+    [req.user.id]
+  );
+
   const [users] = await db.query(
-    `SELECT user_id, email, full_name, phone, role, status,date_of_birth, gender, 
+    `SELECT user_id, email, full_name, phone, role, status, date_of_birth, gender, 
             profile_image, base_salary, target_amount, incentive_percentage, incentive_amount,
-            created_at, updated_at
+            created_at, updated_at, org_id
      FROM users 
      WHERE user_id = ?`,
     [id]
@@ -353,8 +388,61 @@ exports.getUserById = asyncHandler(async (req, res) => {
     });
   }
 
+  // Check if current user has permission to view this user
+  if (req.user.role !== 'super_admin' && 
+      users[0].org_id !== currentUser[0].org_id) {
+    return res.status(403).json({
+      success: false,
+      message: 'You can only view users in your organization'
+    });
+  }
+
+  // Get organization name
+  let org_name = null;
+  if (users[0].org_id) {
+    const [orgs] = await db.query(
+      'SELECT org_name FROM organizations WHERE org_id = ?',
+      [users[0].org_id]
+    );
+    org_name = orgs[0]?.org_name || null;
+  }
+
   res.json({
     success: true,
-    user: users[0]
+    user: { ...users[0], org_name }
+  });
+});
+
+// @desc    Get users by organization (for dropdown)
+// @route   GET /api/users/organization/:orgId
+exports.getUsersByOrganization = asyncHandler(async (req, res) => {
+  const { orgId } = req.params;
+
+  // Check if current user has access to this organization
+  const [currentUser] = await db.query(
+    'SELECT org_id, role FROM users WHERE user_id = ?',
+    [req.user.id]
+  );
+
+  if (req.user.role !== 'super_admin' && 
+      parseInt(orgId) !== currentUser[0].org_id) {
+    return res.status(403).json({
+      success: false,
+      message: 'You can only view users in your organization'
+    });
+  }
+
+  const [users] = await db.query(
+    `SELECT user_id, full_name, email, phone, role, profile_image, status
+     FROM users 
+     WHERE org_id = ? AND status = 'active'
+     ORDER BY full_name`,
+    [orgId]
+  );
+
+  res.json({
+    success: true,
+    count: users.length,
+    users
   });
 });

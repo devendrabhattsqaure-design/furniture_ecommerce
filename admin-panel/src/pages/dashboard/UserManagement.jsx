@@ -1,4 +1,3 @@
-// admin-panel/src/pages/dashboard/UserManagement.jsx
 import React, { useState, useEffect } from "react";
 import { Users, Edit2, Trash2, X, Plus, Upload, Loader2, Eye, Calendar, DollarSign, Target, TrendingUp } from "lucide-react";
 import { ToastContainer, toast } from 'react-toastify';
@@ -12,8 +11,10 @@ const UserManagement = () => {
   const [editingUser, setEditingUser] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
+  const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [fetchingUsers, setFetchingUsers] = useState(true);
+  const [userOrg, setUserOrg] = useState(null);
   
   const [formData, setFormData] = useState({
     full_name: "",
@@ -26,15 +27,38 @@ const UserManagement = () => {
     base_salary: "",
     target_amount: "",
     incentive_percentage: "",
-    profile_image: null
+    profile_image: null,
+    org_id: ""
   });
 
   const navigate = useNavigate();
   const API_BASE_URL = "http://localhost:5000/api";
 
   useEffect(() => {
+    fetchUserOrganization();
     fetchUsers();
   }, []);
+
+  const fetchUserOrganization = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.user) {
+          setUserOrg(data.user.org_id);
+          fetchOrganizations(data.user.org_id);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching user organization:', error);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -60,15 +84,32 @@ const UserManagement = () => {
     }
   };
 
+  const fetchOrganizations = async (userOrgId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/organizations/select`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Filter organizations: show only user's organization unless super admin
+        const orgs = data.organizations || [];
+        const filteredOrgs = orgs.filter(org => 
+          userOrgId === org.org_id || userOrgId === null
+        );
+        setOrganizations(filteredOrgs);
+      }
+    } catch (error) {
+      console.error('Error fetching organizations:', error);
+    }
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-
-    // Auto-calculate incentive amount when target amount or percentage changes
-    if ((name === 'target_amount' || name === 'incentive_percentage') && 
-        formData.target_amount && formData.incentive_percentage) {
-      // This is just for display, the calculation happens on backend
-    }
   };
 
   const handleImageChange = (e) => {
@@ -106,34 +147,36 @@ const UserManagement = () => {
       base_salary: "",
       target_amount: "",
       incentive_percentage: "",
-      profile_image: null
+      profile_image: null,
+      org_id: userOrg || ""
     });
     setPreviewImage(null);
     setEditingUser(null);
   };
 
- const openModal = (user = null) => {
-  if (user) {
-    setEditingUser(user);
-    setFormData({
-      full_name: user.full_name || "",
-      email: user.email || "",
-      phone: user.phone || "",
-      date_of_birth: user.date_of_birth || "",
-      role: user.role || "employee",
-      gender: user.gender || "",
-      status: user.status || "active",
-      base_salary: user.base_salary || "",
-      target_amount: user.target_amount || "",
-      incentive_percentage: user.incentive_percentage || "",
-      profile_image: null
-    });
-    setPreviewImage(user.profile_image || null);
-  } else {
-    resetForm();
-  }
-  setIsModalOpen(true);
-};
+  const openModal = (user = null) => {
+    if (user) {
+      setEditingUser(user);
+      setFormData({
+        full_name: user.full_name || "",
+        email: user.email || "",
+        phone: user.phone || "",
+        date_of_birth: user.date_of_birth || "",
+        role: user.role || "employee",
+        gender: user.gender || "",
+        status: user.status || "active",
+        base_salary: user.base_salary || "",
+        target_amount: user.target_amount || "",
+        incentive_percentage: user.incentive_percentage || "",
+        profile_image: null,
+        org_id: user.org_id || userOrg || ""
+      });
+      setPreviewImage(user.profile_image || null);
+    } else {
+      resetForm();
+    }
+    setIsModalOpen(true);
+  };
 
   const openTargetModal = (user) => {
     setSelectedUser(user);
@@ -259,96 +302,102 @@ const UserManagement = () => {
   };
 
   const addUser = async () => {
-  try {
-    const submitData = new FormData();
-    submitData.append('full_name', formData.full_name);
-    submitData.append('email', formData.email);
-    submitData.append('phone', formData.phone);
-    submitData.append('role', formData.role);
-    submitData.append('base_salary', formData.base_salary);
-    submitData.append('target_amount', formData.target_amount || '0');
-    submitData.append('incentive_percentage', formData.incentive_percentage || '0');
-    
-    if (formData.date_of_birth) {
-      submitData.append('date_of_birth', formData.date_of_birth);
-    }
-    if (formData.gender) {
-      submitData.append('gender', formData.gender);
-    }
-    if (formData.profile_image) {
-      submitData.append('image', formData.profile_image);
-    }
+    try {
+      const submitData = new FormData();
+      submitData.append('full_name', formData.full_name);
+      submitData.append('email', formData.email);
+      submitData.append('phone', formData.phone);
+      submitData.append('role', formData.role);
+      submitData.append('base_salary', formData.base_salary);
+      submitData.append('target_amount', formData.target_amount || '0');
+      submitData.append('incentive_percentage', formData.incentive_percentage || '0');
+      submitData.append('org_id', formData.org_id || userOrg || '');
+      
+      if (formData.date_of_birth) {
+        submitData.append('date_of_birth', formData.date_of_birth);
+      }
+      if (formData.gender) {
+        submitData.append('gender', formData.gender);
+      }
+      if (formData.profile_image) {
+        submitData.append('image', formData.profile_image);
+      }
 
-    const token = localStorage.getItem('token');
-    const response = await fetch(`${API_BASE_URL}/auth/admin/register`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`
-        // Don't set Content-Type for FormData, let browser set it with boundary
-      },
-      body: submitData
-    });
-    
-    const data = await response.json();
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/auth/admin/register`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: submitData
+      });
+      
+      const data = await response.json();
 
-    if (response.ok) {
-      toast.success("User added successfully");
-      closeModal();
-      fetchUsers();
-    } else {
-      toast.error(data.message || data.errors?.[0]?.msg || "Failed to add user");
+      if (response.ok) {
+        toast.success("User added successfully");
+        closeModal();
+        fetchUsers();
+      } else {
+        toast.error(data.message || data.errors?.[0]?.msg || "Failed to add user");
+      }
+    } catch (error) {
+      console.error('Error adding user:', error);
+      toast.error("Network error. Please try again.");
     }
-  } catch (error) {
-    console.error('Error adding user:', error);
-    toast.error("Network error. Please try again.");
-  }
-};
+  };
 
-// Update the updateUser function to ensure all fields are included
-const updateUser = async (userId) => {
-  try {
-    const submitData = new FormData();
-    submitData.append('full_name', formData.full_name);
-    submitData.append('email', formData.email);
-    submitData.append('phone', formData.phone);
-    submitData.append('gender', formData.gender || '');
-    submitData.append('role', formData.role);
-    submitData.append('status', formData.status);
-    submitData.append('base_salary', formData.base_salary);
-    submitData.append('target_amount', formData.target_amount || '0');
-    submitData.append('incentive_percentage', formData.incentive_percentage || '0');
-    
-    if (formData.date_of_birth) {
-      submitData.append('date_of_birth', formData.date_of_birth);
+  const updateUser = async (userId) => {
+    try {
+      const submitData = new FormData();
+      submitData.append('full_name', formData.full_name);
+      submitData.append('email', formData.email);
+      submitData.append('phone', formData.phone);
+      submitData.append('gender', formData.gender || '');
+      submitData.append('role', formData.role);
+      submitData.append('status', formData.status);
+      submitData.append('base_salary', formData.base_salary);
+      submitData.append('target_amount', formData.target_amount || '0');
+      submitData.append('incentive_percentage', formData.incentive_percentage || '0');
+      
+      // Only super admin can change organization
+      if (userOrg === null) { // Assuming null means super admin
+        submitData.append('org_id', formData.org_id || '');
+      } else {
+        submitData.append('org_id', userOrg);
+      }
+      
+      if (formData.date_of_birth) {
+        submitData.append('date_of_birth', formData.date_of_birth);
+      }
+      
+      if (formData.profile_image) {
+        submitData.append('image', formData.profile_image);
+      }
+
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: submitData
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success("User updated successfully");
+        closeModal();
+        fetchUsers();
+      } else {
+        toast.error(data.message || "Failed to update user");
+      }
+    } catch (error) {
+      console.error('Error updating user:', error);
+      toast.error("Network error. Please try again.");
     }
-    
-    if (formData.profile_image) {
-      submitData.append('image', formData.profile_image);
-    }
-
-    const token = localStorage.getItem('token');
-    const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      },
-      body: submitData
-    });
-
-    const data = await response.json();
-
-    if (response.ok) {
-      toast.success("User updated successfully");
-      closeModal();
-      fetchUsers();
-    } else {
-      toast.error(data.message || "Failed to update user");
-    }
-  } catch (error) {
-    console.error('Error updating user:', error);
-    toast.error("Network error. Please try again.");
-  }
-};
+  };
 
   const handleDelete = async (userId) => {
     if (!window.confirm("Are you sure you want to delete this user?")) {
@@ -377,7 +426,6 @@ const updateUser = async (userId) => {
     }
   };
 
-  // Calculate incentive amount for display
   const calculateIncentiveAmount = () => {
     if (formData.target_amount && formData.incentive_percentage) {
       return (parseFloat(formData.target_amount) * parseFloat(formData.incentive_percentage)) / 100;
@@ -385,12 +433,19 @@ const updateUser = async (userId) => {
     return 0;
   };
 
-  // Calculate potential final salary
   const calculatePotentialSalary = () => {
     const baseSalary = parseFloat(formData.base_salary) || 0;
     const incentive = calculateIncentiveAmount();
     return baseSalary + incentive;
   };
+
+  // Filter users based on organization
+  const filteredUsers = users.filter(user => {
+    // Super admin can see all
+    if (userOrg === null) return true;
+    // Others can only see users from their organization
+    return user.org_id === userOrg;
+  });
 
   return (
     <div className="min-h-screen bg-gray-50 py-6">
@@ -415,7 +470,10 @@ const updateUser = async (userId) => {
           </div>
           <div className="p-6 text-right">
             <p className="text-sm text-gray-600 font-medium">Total Users</p>
-            <h4 className="text-3xl font-bold text-gray-900">{users.length}</h4>
+            <h4 className="text-3xl font-bold text-gray-900">{filteredUsers.length}</h4>
+            <p className="text-xs text-gray-500 mt-1">
+              {userOrg === null ? "All organizations" : "Your organization"}
+            </p>
           </div>
         </div>
       </div>
@@ -424,20 +482,25 @@ const updateUser = async (userId) => {
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="p-6 border-b border-gray-200 flex justify-between items-center">
           <h2 className="text-2xl font-bold text-gray-800">User Management</h2>
-          <button
-            onClick={() => openModal()}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            Add User
-          </button>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-600">
+              {userOrg === null ? "Super Admin View" : "Organization Users"}
+            </span>
+            <button
+              onClick={() => openModal()}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              Add User
+            </button>
+          </div>
         </div>
 
         {fetchingUsers ? (
           <div className="flex justify-center items-center p-12">
             <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
           </div>
-        ) : users.length === 0 ? (
+        ) : filteredUsers.length === 0 ? (
           <div className="text-center p-12 text-gray-500">
             <Users className="w-16 h-16 mx-auto mb-4 text-gray-300" />
             <p className="text-lg">No users found</p>
@@ -460,7 +523,7 @@ const updateUser = async (userId) => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {users.map((user) => (
+                {filteredUsers.map((user) => (
                   <tr key={user.user_id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -471,7 +534,12 @@ const updateUser = async (userId) => {
                             <span className="text-blue-600 font-semibold">{user.full_name.charAt(0)}</span>
                           </div>
                         )}
-                        <span className="font-medium text-gray-900">{user.full_name}</span>
+                        <div>
+                          <span className="font-medium text-gray-900">{user.full_name}</span>
+                          {user.org_name && (
+                            <div className="text-xs text-gray-500">{user.org_name}</div>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-gray-700">{user.email}</td>
@@ -555,6 +623,28 @@ const updateUser = async (userId) => {
 
             <form onSubmit={handleSubmit} className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Organization - Only show if super admin */}
+                {userOrg === null && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Organization
+                    </label>
+                    <select
+                      name="org_id"
+                      value={formData.org_id || ''}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select Organization</option>
+                      {organizations.map(org => (
+                        <option key={org.org_id} value={org.org_id}>
+                          {org.org_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 {/* Full Name */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -691,24 +781,24 @@ const updateUser = async (userId) => {
 
                 {/* Role */}
                 <div>
-  <label className="block text-sm font-semibold text-gray-700 mb-2">
-    Role <span className="text-red-500">*</span>
-  </label>
-  <select
-    name="role"
-    value={formData.role}
-    onChange={handleInputChange}
-    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-    required
-  >
-    <option value="employee">Employee</option>
-    <option value="admin">Admin</option>
-    <option value="manager">Manager</option>
-    {/* <option value="customer">Customer</option> */}
-  </select>
-</div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Role <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    name="role"
+                    value={formData.role}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  >
+                    <option value="employee">Employee</option>
+                    <option value="manager">Manager</option>
+                    <option value="admin">Admin</option>
+                    {userOrg === null && <option value="super_admin">Super Admin</option>}
+                  </select>
+                </div>
 
-                {/* Status */}
+                {/* Status - Only for editing */}
                 {editingUser && (
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -836,61 +926,64 @@ const updateUser = async (userId) => {
               <div className="mb-4 p-3 bg-blue-50 rounded-lg">
                 <h4 className="font-semibold text-blue-800">User: {selectedUser.full_name}</h4>
                 <p className="text-sm text-blue-600">Email: {selectedUser.email}</p>
+                {selectedUser.org_name && (
+                  <p className="text-sm text-blue-600">Organization: {selectedUser.org_name}</p>
+                )}
               </div>
 
               <div className="space-y-4">
                 {/* Base Salary */}
-                {/* In the modal form, update the base salary field to ensure it's properly handled */}
-<div>
-  <label className="block text-sm font-semibold text-gray-700 mb-2">
-    Base Salary (₹) <span className="text-red-500">*</span>
-  </label>
-  <input
-    type="number"
-    name="base_salary"
-    value={formData.base_salary}
-    onChange={handleInputChange}
-    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-    placeholder="Enter base salary"
-    min="0"
-    step="0.01"
-    required
-  />
-</div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Base Salary (₹) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    name="base_salary"
+                    value={formData.base_salary}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter base salary"
+                    min="0"
+                    step="0.01"
+                    required
+                  />
+                </div>
 
-{/* Make sure target_amount and incentive_percentage are included */}
-<div>
-  <label className="block text-sm font-semibold text-gray-700 mb-2">
-    Target Amount (₹)
-  </label>
-  <input
-    type="number"
-    name="target_amount"
-    value={formData.target_amount}
-    onChange={handleInputChange}
-    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-    placeholder="Enter target amount"
-    min="0"
-    step="0.01"
-  />
-</div>
+                {/* Target Amount */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Target Amount (₹)
+                  </label>
+                  <input
+                    type="number"
+                    name="target_amount"
+                    value={formData.target_amount}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter target amount"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
 
-<div>
-  <label className="block text-sm font-semibold text-gray-700 mb-2">
-    Incentive Percentage (%)
-  </label>
-  <input
-    type="number"
-    name="incentive_percentage"
-    value={formData.incentive_percentage}
-    onChange={handleInputChange}
-    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-    placeholder="Enter incentive percentage"
-    min="0"
-    max="100"
-    step="0.01"
-  />
-</div>
+                {/* Incentive Percentage */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Incentive Percentage (%)
+                  </label>
+                  <input
+                    type="number"
+                    name="incentive_percentage"
+                    value={formData.incentive_percentage}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter incentive percentage"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                  />
+                </div>
 
                 {/* Salary Calculation Preview */}
                 {(formData.base_salary || formData.target_amount) && (
